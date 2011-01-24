@@ -52,7 +52,20 @@ def play_with_random_pitch(c):
 	if not s.triggered or not s.positive:
 		return
 	o = c.owner
-	
+
+	try:
+		o['SoundID']
+	except KeyError:
+		o['SoundID'] = None
+	try:
+		o['PitchMin']
+	except KeyError:
+		o['PitchMin'] = 0.8
+	try:
+		o['PitchMax']
+	except KeyError:
+		o['PitchMax'] = 1.2
+
 	#
 	# Select an actuator.
 	#
@@ -98,6 +111,16 @@ def fade(c):
 def _fade(c, maxVolume):
 	a = c.actuators[0]
 	o = a.owner
+
+	try:
+		o['VolumeMult']
+	except KeyError:
+		o['VolumeMult'] = 1.0
+	try:
+		o['SoundFadeFac']
+	except KeyError:
+		o['SoundFadeFac'] = 0.05
+
 	maxVolume = maxVolume * o['VolumeMult']
 	
 	targetVolume = 0.0
@@ -116,7 +139,20 @@ def _fade(c, maxVolume):
 
 def _modulate(speed, c):
 	o = c.owner
-	
+
+	try:
+		o['SoundModScale']
+	except KeyError:
+		o['SoundModScale'] = 0.01
+	try:
+		o['PitchMin']
+	except KeyError:
+		o['PitchMin'] = 0.8
+	try:
+		o['PitchMax']
+	except KeyError:
+		o['PitchMax'] = 1.2
+
 	factor = 0.0
 	if speed > 0.0:
 		factor = bxt.math.approach_one(speed, o['SoundModScale'])
