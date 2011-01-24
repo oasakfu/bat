@@ -32,13 +32,13 @@ def play_with_random_pitch(c):
 	'''
 	Play a sound with a random pitch. The pitch range is defined by the
 	controller's owner using the properties PitchMin and PitchMax.
-	
+
 	Sensors:
 	<one>:  If positive and triggered, a sound will be played.
-	
+
 	Actuators:
 	<one+>: Each will be played in turn.
-	
+
 	Controller properties:
 	PitchMin: The minimum pitch (float).
 	PitchMax: The maximum pitch (float).
@@ -76,11 +76,11 @@ def play_with_random_pitch(c):
 	except KeyError:
 		_SoundActuatorIndices[soundID] = 0
 		i = 0
-	
+
 	i = i % len(c.actuators)
 	a = c.actuators[i]
 	_SoundActuatorIndices[soundID] = i + 1
-	
+
 	#
 	# Set the pitch and activate!
 	#
@@ -93,15 +93,15 @@ def fade(c):
 	Causes a sound to play a long as its inputs are active. On activation, the
 	sound fades in; on deactivation, it fades out. The fade rate is determined
 	by the owner's SoundFadeFac property (0.0 <= SoundFadeFac <= 1.0).
-	
+
 	Sensors:
 	sAlways:  Fires every frame to provide the fading effect.
 	<one+>:   If any are positive, the sound will turn on. Otherwise the sound
 	          will turn off.
-	
+
 	Actuators:
 	<one>:    A sound actuator.
-	
+
 	Controller properties:
 	VolumeMult:    The maximum volume (float).
 	SoundFadeFac:  The response factor for the volume (float).
@@ -122,7 +122,7 @@ def _fade(c, maxVolume):
 		o['SoundFadeFac'] = 0.05
 
 	maxVolume = maxVolume * o['VolumeMult']
-	
+
 	targetVolume = 0.0
 	for s in c.sensors:
 		if s.name == "sAlways":
@@ -130,7 +130,7 @@ def _fade(c, maxVolume):
 		if s.positive:
 			targetVolume = maxVolume
 			break
-	
+
 	a.volume = bxt.math.lerp(a.volume, targetVolume, o['SoundFadeFac'])
 	if a.volume > MIN_VOLUME:
 		c.activate(a)
@@ -156,10 +156,10 @@ def _modulate(speed, c):
 	factor = 0.0
 	if speed > 0.0:
 		factor = bxt.math.approach_one(speed, o['SoundModScale'])
-	
+
 	a = c.actuators[0]
 	a.pitch = bxt.math.lerp(o['PitchMin'], o['PitchMax'], factor)
-	
+
 	_fade(c, factor)
 
 @bxt.utils.controller
@@ -167,15 +167,15 @@ def modulate_by_linv(c):
 	'''
 	Change the pitch and volume of the sound depending on the angular velocity
 	of the controller's owner.
-	
+
 	Sensors:
 	sAlways:  Fires every frame to provide the fading effect.
 	<others>: At least one other. If any are positive, the sound will turn on.
 	          Otherwise the sound will turn off.
-	
+
 	Actuators:
 	<one>:    A sound actuator.
-	
+
 	Controller properties:
 	SoundModScale: The rate at which the pitch increases (float).
 	PitchMin:      The minimum pitch (when speed = 0) (float).
@@ -192,15 +192,15 @@ def modulate_by_angv(c):
 	'''
 	Change the pitch and volume of the sound depending on the angular velocity
 	of the controller's owner.
-	
+
 	Sensors:
 	sAlways:  Fires every frame to provide the fading effect.
 	<others>: At least one other. If any are positive, the sound will turn on.
 	          Otherwise the sound will turn off.
-	
+
 	Actuators:
 	<one>:    A sound actuator.
-	
+
 	Controller properties:
 	SoundModScale: The rate at which the pitch increases (float).
 	PitchMin:      The minimum pitch (when speed = 0) (float).
