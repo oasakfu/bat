@@ -376,6 +376,11 @@ class ProxyCamera(_ProxyObjectBase):
 	def __init__(self, owner):
 		_ProxyObjectBase.__init__(self, owner)
 
+@gameobject()
+class ProxyArmature(ProxyGameObject):
+	def __init__(self, owner):
+		ProxyGameObject.__init__(self, owner)
+
 def wrap(ob, defaultType=ProxyGameObject):
 	if is_wrapper(ob):
 		return ob
