@@ -155,7 +155,8 @@ class gameobject:
 		module = sys.modules[cls.__module__]
 
 		for methodName in self.externs:
-			f = cls.__dict__[methodName]
+			f = getattr(cls, methodName)
+			#f = cls.__dict__[methodName]
 			self.expose_method(methodName, f, module, prefix)
 
 	def expose_method(self, methodName, f, module, prefix):
