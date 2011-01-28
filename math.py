@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from bge import render
+from bge import render, logic
 import mathutils
 
 import bxt.utils
@@ -272,3 +272,8 @@ def triangleNormal(p0, p1, p2):
 		bxt.render.draw_polyline([p0, p1, p2], bxt.render.GREEN, cyclic=True)
 	
 	return normal
+
+def getRandomVector():
+	return mathutils.Vector((logic.getRandomFloat(),
+		logic.getRandomFloat(),
+		logic.getRandomFloat()))
