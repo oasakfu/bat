@@ -274,6 +274,8 @@ def triangleNormal(p0, p1, p2):
 	return normal
 
 def getRandomVector():
-	return mathutils.Vector((logic.getRandomFloat(),
-		logic.getRandomFloat(),
-		logic.getRandomFloat()))
+	vec = mathutils.Vector((logic.getRandomFloat() - 0.5,
+		logic.getRandomFloat() - 0.5,
+		logic.getRandomFloat() - 0.5))
+	vec.normalize()
+	return vec
