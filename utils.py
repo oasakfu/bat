@@ -57,8 +57,9 @@ def controller(f):
 	'''Decorator. Passes a single argument to a function: the current
 	controller.'''
 	@wraps(f)
-	def f_new():
-		c = logic.getCurrentController()
+	def f_new(c=None):
+		if c == None:
+			c = logic.getCurrentController()
 		return f(c)
 	return f_new
 
@@ -66,8 +67,9 @@ def controller_cls(f):
 	'''Decorator. Passes a single argument to a function: the current
 	controller.'''
 	@wraps(f)
-	def f_new(self):
-		c = logic.getCurrentController()
+	def f_new(self, c=None):
+		if c == None:
+			c = logic.getCurrentController()
 		return f(self, c)
 	return f_new
 
