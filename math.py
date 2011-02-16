@@ -16,6 +16,7 @@
 #
 
 from bge import render
+from bge import logic
 import mathutils
 
 import bxt.utils
@@ -272,3 +273,43 @@ def triangleNormal(p0, p1, p2):
 		bxt.render.draw_polyline([p0, p1, p2], bxt.render.GREEN, cyclic=True)
 	
 	return normal
+
+def getRandomVector():
+	vec = mathutils.Vector((logic.getRandomFloat() - 0.5,
+						logic.getRandomFloat() - 0.5,
+						logic.getRandomFloat() - 0.5))
+	vec.normalize()
+	return vec
+
+class Box2D:
+	'''A 2D bounding box.'''
+
+	def __init__(self, xLow, yLow, xHigh, yHigh):
+		self.xLow = xLow
+		self.yLow = yLow
+		self.xHigh = xHigh
+		self.yHigh = yHigh
+
+	def intersect(self, other):
+		if other.xHigh < self.xHigh:
+			self.xHigh = other.xHigh
+		if other.yHigh < self.yHigh:
+			self.yHigh = other.yHigh
+		
+		if other.xLow > self.xLow:
+			self.xLow = other.xLow
+		if other.yLow > self.yLow:
+			self.yLow = other.yLow
+
+		#
+		# Ensure box is not inside-out.
+		#
+		if self.xLow > self.xHigh:
+			self.xLow = self.xHigh
+		if self.yLow > self.yHigh:
+			self.yLow = self.yHigh
+
+	def get_area(self):
+		w = self.xHigh - self.xLow
+		h = self.yHigh - self.yLow
+		return w * h

@@ -44,7 +44,10 @@ from bge import logic
 import bxt.utils
 
 def has_wrapper(owner):
-	return '__wrapper__' in owner
+	if owner == None:
+		return False
+	else:
+		return '__wrapper__' in owner
 
 def get_wrapper(owner):
 	try:
