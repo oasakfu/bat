@@ -22,6 +22,7 @@ import mathutils
 
 import bxt.types
 import bxt.math
+import bxt.effectors
 
 # The angle to rotate successive ripples by (giving them a random appearance),
 # in degrees.
@@ -192,7 +193,7 @@ class Water(bxt.types.ProxyGameObject):
 		if submergedFactor <= 0.1 and not self.isBubble(actor):
 			# Object has emerged.
 			actor['CurrentBuoyancy'] = actor['Buoyancy']
-			return False
+			return submergedFactor
 
 		#
 		# Object is partially submerged. Apply acceleration away from the
@@ -223,7 +224,7 @@ class Water(bxt.types.ProxyGameObject):
 		else:
 			actor['CurrentBuoyancy'] -= actor['SinkFactor']
 
-		return True
+		return submergedFactor
 
 	def spawn_ripples(self, actor, force = False):
 		if self.isBubble(actor):
@@ -257,6 +258,14 @@ class Water(bxt.types.ProxyGameObject):
 			if not actor.invalid:
 				self.spawn_ripples(actor, False)
 
+		forceFields = []
+		for child in self.children:
+			if not bxt.types.has_wrapper(child):
+				continue
+			wrapper = bxt.types.get_wrapper(child)
+			if isinstance(wrapper, bxt.effectors.ForceField):
+				forceFields.append(wrapper)
+
 		# Transfer floatation to hierarchy root (since children can't be
 		# dynamic).
 		self.FloatingActors.update(hitActors)
@@ -277,10 +286,14 @@ class Water(bxt.types.ProxyGameObject):
 		# Apply buoyancy to actors.
 		for actor in self.FloatingActors.copy():
 			self.set_defaults(actor)
-			floating = self.float(actor)
-			actor['Floating'] = floating
-			if not floating:
+			submergedFactor = self.float(actor)
+			if submergedFactor < 0.1:
 				self.FloatingActors.discard(actor)
+				actor['Floating'] = False
+			else:
+				actor['Floating'] = True
+				for ff in forceFields:
+					ff.touchedSingle(actor, submergedFactor)
 
 		if len(self.FloatingActors) > 0:
 			self.set_state(self.S_FLOATING)
