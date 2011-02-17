@@ -15,8 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from bge import render
-from bge import logic
+from bge import render, logic
 import mathutils
 
 import bxt.utils
@@ -276,8 +275,8 @@ def triangleNormal(p0, p1, p2):
 
 def getRandomVector():
 	vec = mathutils.Vector((logic.getRandomFloat() - 0.5,
-						logic.getRandomFloat() - 0.5,
-						logic.getRandomFloat() - 0.5))
+		logic.getRandomFloat() - 0.5,
+		logic.getRandomFloat() - 0.5))
 	vec.normalize()
 	return vec
 

@@ -158,7 +158,8 @@ class gameobject:
 		module = sys.modules[cls.__module__]
 
 		for methodName in self.externs:
-			f = cls.__dict__[methodName]
+			f = getattr(cls, methodName)
+			#f = cls.__dict__[methodName]
 			self.expose_method(methodName, f, module, prefix)
 
 	def expose_method(self, methodName, f, module, prefix):
@@ -378,6 +379,11 @@ class ProxyGameObject(_ProxyObjectBase):
 class ProxyCamera(_ProxyObjectBase):
 	def __init__(self, owner):
 		_ProxyObjectBase.__init__(self, owner)
+
+@gameobject()
+class ProxyArmature(ProxyGameObject):
+	def __init__(self, owner):
+		ProxyGameObject.__init__(self, owner)
 
 def wrap(ob, defaultType=ProxyGameObject):
 	if is_wrapper(ob):
