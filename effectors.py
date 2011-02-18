@@ -110,10 +110,7 @@ class Linear(ForceField):
 		ForceField.__init__(self, owner)
 
 	def get_force_direction(self, posLocal):
-		vec = posLocal.copy()
-		vec.x = 0.0
-		vec.z = 0.0
-		return vec
+		return bxt.math.to_local_vec(self, self.getAxisVect(bxt.math.YAXIS))
 
 	def modulate(self, distance, limit):
 		'''
