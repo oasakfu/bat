@@ -15,6 +15,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+import math
+
 from bge import render, logic
 import mathutils
 
@@ -312,3 +314,70 @@ class Box2D:
 		w = self.xHigh - self.xLow
 		h = self.yHigh - self.yLow
 		return w * h
+
+@bxt.types.gameobject()
+class ArcRay(bxt.types.ProxyGameObject):
+	'''Like a Ray sensor, but the detection is done along an arc. The arc
+	rotates around the y-axis, starting from the positive z-axis and sweeping
+	around to the positive x-axis.'''
+
+	RADIUS = 2.0
+	ANGLE = 180.0
+	RESOLUTION = 6
+
+	def __init__(self, owner):
+		bxt.types.ProxyGameObject.__init__(self, owner)
+		self._createPoints()
+		self.lastHitPoint = ORIGIN.copy()
+		self.lastHitNorm = ZAXIS.copy()
+
+		if DEBUG:
+			self.marker = bxt.utils.add_object('PointMarker', 0)
+
+	def _createPoints(self):
+		'''Generate an arc of line segments to cast rays along.'''
+		self.path = []
+
+		self.set_default_prop('angle', ArcRay.ANGLE)
+		self.set_default_prop('resolution', ArcRay.RESOLUTION)
+		self.set_default_prop('radius', ArcRay.RADIUS)
+		self.set_default_prop('prop', '')
+
+		revolutions = self['angle'] / 360.0
+		endAngle = math.radians(self['angle'])
+
+		numSegments = int(math.ceil(revolutions * self['resolution']))
+		increment = endAngle / numSegments
+
+		for i in range(numSegments + 1):
+			angle = increment * i
+			point = mathutils.Vector()
+			point.x = math.sin(angle) * self['radius']
+			point.z = math.cos(angle) * self['radius']
+			self.path.append(point)
+
+	def getHitPosition(self):
+		"""Return the hit point of the first child ray that hits.
+		If none hit, the default value of the first ray is returned."""
+		ob = None
+		norm = None
+		for A, B in zip(self.path, self.path[1:]):
+			A = to_world(self, A)
+			B = to_world(self, B)
+			ob, p, norm = ray_cast_p2p(B, A, prop=self['prop'])
+			if ob:
+				self.lastHitPoint = to_local(self, p)
+				self.lastHitNorm = to_local_vec(self, norm)
+				if DEBUG:
+					render.drawLine(A, p, bxt.render.ORANGE.xyz)
+				break
+			else:
+				if DEBUG:
+					render.drawLine(A, B, bxt.render.YELLOW.xyz)
+
+		wp = to_world(self, self.lastHitPoint)
+		wn = to_world_vec(self, self.lastHitNorm)
+		if DEBUG:
+			self.marker.worldPosition = wp
+
+		return ob, wp, wn

@@ -64,45 +64,6 @@ def unwrap(ob):
 	else:
 		return ob
 
-class singleton:
-	def __init__(self, *externs, prefix=None):
-		self.externs = externs
-		self.converted = False
-		self.prefix = prefix
-		self.instance = None
-
-	@bxt.utils.all_sensors_positive
-	def __call__(self, cls):
-		if not self.converted:
-			self.create_interface(cls)
-			self.converted = True
-
-		self.instance = cls()
-		def get():
-			return self.instance
-		return get
-
-	def create_interface(self, cls):
-		'''Expose the nominated methods as top-level functions in the containing
-		module.'''
-		prefix = self.prefix
-		if prefix == None:
-			prefix = cls.__name__ + '_'
-
-		module = sys.modules[cls.__module__]
-
-		for methodName in self.externs:
-			f = cls.__dict__[methodName]
-			self.expose_method(methodName, f, module, prefix)
-
-	def expose_method(self, methodName, f, module, prefix):
-		def method_function(*args, **kwargs):
-			return f(self.instance, *args, **kwargs)
-
-		method_function.__name__ = '%s%s' % (prefix, methodName)
-		method_function.__doc__ = f.__doc__
-		setattr(module, method_function.__name__, method_function)
-
 class gameobject:
 	'''Extends a class to wrap KX_GameObjects. This decorator accepts any number
 	of strings as arguments. Each string should be the name of a member to
@@ -162,17 +123,17 @@ class gameobject:
 			#f = cls.__dict__[methodName]
 			self.expose_method(methodName, f, module, prefix)
 
-	def expose_method(self, methodName, f, module, prefix):
-		def method_function(*args, **kwargs):
+	def expose_method(self, methodName, method, module, prefix):
+		def method_wrapper(*args, **kwargs):
 			o = logic.getCurrentController().owner
 			instance = get_wrapper(o)
 			args = list(args)
 			args.insert(0, instance)
-			return f(*args, **kwargs)
+			return method(*args, **kwargs)
 
-		method_function.__name__ = '%s%s' % (prefix, methodName)
-		method_function.__doc__ = f.__doc__
-		setattr(module, method_function.__name__, method_function)
+		method_wrapper.__name__ = '%s%s' % (prefix, methodName)
+		method_wrapper.__doc__ = method.__doc__
+		setattr(module, method_wrapper.__name__, method_wrapper)
 
 def dereference_arg1(f):
 	'''Function decorator: un-wraps the first argument of a function if

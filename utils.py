@@ -15,6 +15,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+import sys
+
 from functools import wraps
 
 from bge import logic
@@ -225,6 +227,44 @@ class FuzzySwitch:
 	def is_on(self):
 		return self.on
 
+class singleton:
+	def __init__(self, *externs, prefix=None):
+		self.externs = externs
+		self.converted = False
+		self.prefix = prefix
+		self.instance = None
+
+	def __call__(self, cls):
+		if not self.converted:
+			self.create_interface(cls)
+			self.converted = True
+
+		self.instance = cls()
+		def get():
+			return self.instance
+		return get
+
+	def create_interface(self, cls):
+		'''Expose the nominated methods as top-level functions in the containing
+		module.'''
+		prefix = self.prefix
+		if prefix == None:
+			prefix = cls.__name__ + '_'
+
+		module = sys.modules[cls.__module__]
+
+		for methodName in self.externs:
+			f = cls.__dict__[methodName]
+			self.expose_method(methodName, f, module, prefix)
+
+	def expose_method(self, methodName, method, module, prefix):
+		def method_wrapper(*args, **kwargs):
+			return method(self.instance, *args, **kwargs)
+
+		method_wrapper.__name__ = '%s%s' % (prefix, methodName)
+		method_wrapper.__doc__ = method.__doc__
+		setattr(module, method_wrapper.__name__, method_wrapper)
+
 class WeakPriorityQueue:
 	'''A poor man's associative priority queue. This is likely to be slow. It is
 	only meant to contain a small number of items.
@@ -314,3 +354,66 @@ class WeakPriorityQueue:
 
 	def top(self):
 		return self[-1]
+
+@singleton()
+class EventBus:
+	'''Delivers messages to listeners.'''
+
+	def __init__(self):
+		self.listeners = weakref.WeakSet()
+		self.eventCache = {}
+
+	def addListener(self, listener):
+		self.listeners.add(listener)
+
+	def remListener(self, listener):
+		self.listeners.remove(listener)
+
+	def notify(self, event):
+		'''Send a message.'''
+
+		for listener in self.listeners:
+			listener.onEvent(event)
+		self.eventCache[event.message] = event
+
+	def replayLast(self, target, message):
+		'''Re-send a message. This should be used by new listeners that missed
+		out on the last message, so they know what state the system is in.'''
+
+		if message in self.eventCache:
+			event = self.eventCache[message]
+			target.onEvent(event)
+
+class EventListener:
+	'''Interface for an object that can receive messages.'''
+	def onEvent(self, event):
+		pass
+
+class Event:
+	def __init__(self, message, body):
+		self.message = message
+		self.body = body
+
+	def __str__(self):
+		return "Event(%s, %s)" % (str(self.message), str(self.body))
+
+class WeakEvent(Event):
+	'''An event whose body my be destroyed before it is read. Use this when
+	the body is a game object (which will need to be wrapped in
+	bxt.types.ProxyGameObject).'''
+	def __init__(self, message, body):
+		def autoremove(target):
+			self._body = None
+
+		self.message = message
+		if body == None:
+			self._body = None
+		else:
+			self._body = weakref.ref(body, autoremove)
+
+	def _get_body(self):
+		if self._body == None:
+			return None
+		else:
+			return self._body()
+	body = property(_get_body)
