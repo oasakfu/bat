@@ -187,8 +187,8 @@ def slow_copy_rot(o, goal, factor):
 	in slower and smoother movement.
 	'''
 
-	goalOrn = goal.worldOrientation.to_quat()
-	orn = o.worldOrientation.to_quat()
+	goalOrn = goal.worldOrientation.to_quaternion()
+	orn = o.worldOrientation.to_quaternion()
 	orn = orn.slerp(goalOrn, factor)
 	orn = orn.to_matrix()
 

@@ -37,6 +37,7 @@ This makes it easy to add functionality to KX_GameObjects. Use it like this:
 import sys
 import inspect
 from functools import wraps
+import weakref
 
 from bge import types
 from bge import logic
@@ -63,6 +64,118 @@ def unwrap(ob):
 		return ob.unwrap()
 	else:
 		return ob
+
+class weakprops:
+	'''Creates attributes on an object that store weak references to whatever
+	is assigned to them. If the assignee is deleted, the corresponding attribute
+	will be set to None. The initial value is also None. Example usage:
+
+	@bxt.types.weakprops('foo', 'bar')
+	class Baz:
+		def bork(self, gameObject):
+			self.foo = gameObject
+			self.bar = gameObject.parent
+
+		def update(self):
+			if self.foo != None:
+				self.foo.worldPosition.z += 1
+	'''
+
+	def __init__(self, *propnames):
+		self.propnames = propnames
+		self.converted = False
+
+	def __call__(self, cls):
+		if not self.converted:
+			self.create_props(cls)
+			self.converted = True
+		return cls
+
+	def create_props(self, cls):
+		for name in self.propnames:
+			hiddenName = '_wp_' + name
+			self.create_prop(cls, name, hiddenName)
+
+	def create_prop(self, cls, name, hiddenName):
+		def wp_getter(slf):
+			value = getattr(slf, hiddenName)
+			if value != None:
+				return value()
+			else:
+				return None
+
+		def wp_setter(slf, value):
+			def autoremove(ref):
+				setattr(slf, hiddenName, None)
+
+			if value == None:
+				setattr(slf, hiddenName, None)
+			else:
+				setattr(slf, hiddenName, weakref.ref(value, autoremove))
+
+		def wp_del(slf):
+			delattr(slf, hiddenName)
+
+		setattr(cls, hiddenName, None)
+		setattr(cls, name, property(wp_getter, wp_setter, wp_del))
+
+class expose:
+	'''Exposes class methods as top-level module functions.
+
+	This decorator accepts any number of strings as arguments. Each string
+	should be the name of a member to expose as a top-level function - this
+	makes it available to logic bricks in the BGE. The class name is used as a
+	function prefix. For example, consider the following class definition in a
+	module called 'module':
+
+	@expose('update', prefix='f_')
+	class Foo(bge.types.KX_GameObject):
+		def __init__(self, *args, **kwargs):
+			bge.types.KX_GameObject.__init__(self, *args, **kwargs)
+		def update(self):
+			self.worldPosition.z += 1.0
+
+	A game object can be bound to the 'Foo' class by calling, from a Python
+	controller, 'module.Foo'. The 'update' function can then be called with
+	'module.f_update'. The 'prefix' argument is optional; if omitted, the
+	functions will begin with <class name>_, e.g. 'Foo_update'.
+
+	This decorator requires arguments; i.e. use '@expose()' instead of
+	'@expose'.'''
+
+	def __init__(self, *externs, prefix=None):
+		self.externs = externs
+		self.converted = False
+		self.prefix = prefix
+
+	@bxt.utils.all_sensors_positive
+	def __call__(self, cls):
+		if not self.converted:
+			self.create_interface(cls)
+			self.converted = True
+
+		return cls
+
+	def create_interface(self, cls):
+		'''Expose the nominated methods as top-level functions in the containing
+		module.'''
+		prefix = self.prefix
+		if prefix == None:
+			prefix = cls.__name__ + '_'
+
+		module = sys.modules[cls.__module__]
+
+		for methodName in self.externs:
+			f = getattr(cls, methodName)
+			self.expose_method(methodName, f, module, prefix)
+
+	def expose_method(self, methodName, method, module, prefix):
+		def method_wrapper(controller):
+			return method(controller.owner)
+
+		method_wrapper.__name__ = '%s%s' % (prefix, methodName)
+		method_wrapper.__doc__ = method.__doc__
+		setattr(module, method_wrapper.__name__, method_wrapper)
 
 class gameobject:
 	'''Extends a class to wrap KX_GameObjects. This decorator accepts any number
@@ -120,7 +233,6 @@ class gameobject:
 
 		for methodName in self.externs:
 			f = getattr(cls, methodName)
-			#f = cls.__dict__[methodName]
 			self.expose_method(methodName, f, module, prefix)
 
 	def expose_method(self, methodName, method, module, prefix):
