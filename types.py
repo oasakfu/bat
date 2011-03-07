@@ -39,8 +39,7 @@ import inspect
 from functools import wraps
 import weakref
 
-from bge import types
-from bge import logic
+import bge
 
 import bxt.utils
 
@@ -148,11 +147,22 @@ class expose:
 		self.converted = False
 		self.prefix = prefix
 
-	@bxt.utils.all_sensors_positive
 	def __call__(self, cls):
 		if not self.converted:
 			self.create_interface(cls)
 			self.converted = True
+
+		# We only need to override __new__ here; we can't pass the old
+		# KX_GameObject instance as "owner" to __init__, because it
+		# will have been destroyed (and replaced by) this new one!
+		old_new = cls.__new__
+		def new_new(inst_cls, owner=None):
+			if owner == None:
+				owner = bge.logic.getCurrentController().owner
+			if 'template' in owner:
+				owner = bxt.utils.replaceObject(owner['template'], owner)
+			return old_new(cls, owner)
+		cls.__new__ = new_new
 
 		return cls
 
@@ -170,12 +180,43 @@ class expose:
 			self.expose_method(methodName, f, module, prefix)
 
 	def expose_method(self, methodName, method, module, prefix):
-		def method_wrapper(controller):
-			return method(controller.owner)
+		'''Expose a single method as a top-level module funciton. This must
+		be done in a separate function so that it may act as a closure.'''
+		def method_wrapper():
+			o = bge.logic.getCurrentController().owner
+			return method(o)
 
 		method_wrapper.__name__ = '%s%s' % (prefix, methodName)
 		method_wrapper.__doc__ = method.__doc__
 		setattr(module, method_wrapper.__name__, method_wrapper)
+
+class BX_GameObject:
+	'''Basic convenience extensions to KX_GameObject. Use as a mixin.'''
+
+	def __init__(self):
+		print("Init for BX_GameObject", self)
+
+	def add_state(self, state):
+		'''Add a set of states to this object's state.'''
+		bxt.utils.add_state(self, state)
+
+	def rem_state(self, state):
+		'''Remove a state from this object's state.'''
+		bxt.utils.rem_state(self, state)
+
+	def set_state(self, state):
+		'''Set the object's state. All current states will be un-set and replaced
+		with the one specified.'''
+		bxt.utils.set_state(self, state)
+
+	def has_state(self, state):
+		'''Test whether the object is in the specified state.'''
+		return bxt.utils.has_state(self, state)
+
+	def set_default_prop(self, propName, defaultValue):
+		'''Sets the value of a property, but only if it doesn't already
+		exist.'''
+		bxt.utils.set_default_prop(self, propName, defaultValue)
 
 class gameobject:
 	'''Extends a class to wrap KX_GameObjects. This decorator accepts any number
@@ -213,7 +254,7 @@ class gameobject:
 		old_init = cls.__init__
 		def new_init(self, owner=None):
 			if owner == None:
-				owner = logic.getCurrentController().owner
+				owner = bge.logic.getCurrentController().owner
 			if 'template' in owner:
 				owner = bxt.utils.replaceObject(owner['template'], owner)
 			old_init(self, owner)
@@ -237,7 +278,7 @@ class gameobject:
 
 	def expose_method(self, methodName, method, module, prefix):
 		def method_wrapper(*args, **kwargs):
-			o = logic.getCurrentController().owner
+			o = bge.logic.getCurrentController().owner
 			instance = get_wrapper(o)
 			args = list(args)
 			args.insert(0, instance)
@@ -371,7 +412,7 @@ class mixin:
 		p = property(_get, _set, doc=member.__doc__)
 		setattr(cls, name, p)
 
-@mixin(types.CListValue,
+@mixin(bge.types.CListValue,
 	privates=LIST_FUNCTIONS,
 	refs=['__getitem__', 'from_id', 'get'],
 	derefs=['__contains__', 'append', 'count', 'index'])
@@ -434,7 +475,7 @@ class _ProxyObjectBase:
 		bxt.utils.set_default_prop(self, propName, defaultValue)
 
 @gameobject()
-@mixin(types.KX_GameObject,
+@mixin(bge.types.KX_GameObject,
 	privates=LIST_FUNCTIONS,
 	refs=['parent', 'rayCastTo'],
 	derefs=['getDistanceTo', 'getVectTo', 'setParent', 'rayCastTo', 'reinstancePhysicsMesh'])
@@ -445,7 +486,7 @@ class ProxyGameObject(_ProxyObjectBase):
 		_ProxyObjectBase.__init__(self, owner)
 
 @gameobject()
-@mixin(types.KX_Camera,
+@mixin(bge.types.KX_Camera,
 	privates=LIST_FUNCTIONS,
 	refs=['parent', 'rayCastTo'],
 	derefs=['getDistanceTo', 'getVectTo', 'setParent', 'rayCastTo', 'reinstancePhysicsMesh'])
