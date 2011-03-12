@@ -17,7 +17,7 @@
 
 import math
 
-from bge import render, logic
+import bge
 import mathutils
 
 import bxt.utils
@@ -256,7 +256,7 @@ def quadNormal(p0, p1, p2, p3):
 	
 	if DEBUG:
 		centre = (p0 + p1 + p2 + p3) / 4.0
-		render.drawLine(centre, centre + normal, bxt.render.RED.xyz)
+		bge.render.drawLine(centre, centre + normal, bxt.render.RED.xyz)
 		bxt.render.draw_polyline([p0, p1, p2, p3], bxt.render.GREEN, cyclic=True)
 	
 	return normal
@@ -270,15 +270,15 @@ def triangleNormal(p0, p1, p2):
 	
 	if DEBUG:
 		centre = (p0 + p1 + p2) / 3.0
-		render.drawLine(centre, centre + normal, bxt.render.RED.xyz)
+		bge.render.drawLine(centre, centre + normal, bxt.render.RED.xyz)
 		bxt.render.draw_polyline([p0, p1, p2], bxt.render.GREEN, cyclic=True)
 	
 	return normal
 
 def getRandomVector():
-	vec = mathutils.Vector((logic.getRandomFloat() - 0.5,
-		logic.getRandomFloat() - 0.5,
-		logic.getRandomFloat() - 0.5))
+	vec = mathutils.Vector((bge.logic.getRandomFloat() - 0.5,
+		bge.logic.getRandomFloat() - 0.5,
+		bge.logic.getRandomFloat() - 0.5))
 	vec.normalize()
 	return vec
 
@@ -315,8 +315,7 @@ class Box2D:
 		h = self.yHigh - self.yLow
 		return w * h
 
-@bxt.types.gameobject()
-class ArcRay(bxt.types.ProxyGameObject):
+class ArcRay(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 	'''Like a Ray sensor, but the detection is done along an arc. The arc
 	rotates around the y-axis, starting from the positive z-axis and sweeping
 	around to the positive x-axis.'''
@@ -325,8 +324,7 @@ class ArcRay(bxt.types.ProxyGameObject):
 	ANGLE = 180.0
 	RESOLUTION = 6
 
-	def __init__(self, owner):
-		bxt.types.ProxyGameObject.__init__(self, owner)
+	def __init__(self, old_owner):
 		self._createPoints()
 		self.lastHitPoint = ORIGIN.copy()
 		self.lastHitNorm = ZAXIS.copy()
@@ -369,11 +367,11 @@ class ArcRay(bxt.types.ProxyGameObject):
 				self.lastHitPoint = to_local(self, p)
 				self.lastHitNorm = to_local_vec(self, norm)
 				if DEBUG:
-					render.drawLine(A, p, bxt.render.ORANGE.xyz)
+					bge.render.drawLine(A, p, bxt.render.ORANGE.xyz)
 				break
 			else:
 				if DEBUG:
-					render.drawLine(A, B, bxt.render.YELLOW.xyz)
+					bge.render.drawLine(A, B, bxt.render.YELLOW.xyz)
 
 		wp = to_world(self, self.lastHitPoint)
 		wn = to_world_vec(self, self.lastHitNorm)
