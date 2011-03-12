@@ -118,6 +118,70 @@ class weakprops:
 		setattr(cls, hiddenName, None)
 		setattr(cls, name, property(wp_getter, wp_setter, wp_del))
 
+def expose_fun(f):
+	'''Expose a method as a top-level function. Must be used in conjunction with
+	the GameOb metaclass.'''
+	f._expose = True
+	return f
+
+class GameOb(type):
+	'''A metaclass that makes a class neatly wrap game objects:
+	 - The class constructor can be called from a logic brick, to wrap the
+	   logic brick's owner.
+	 - Methods marked with the expose_fun decorator will be promoted to
+	   top-level functions, and can therefore be called from a logic brick.
+	For example:
+
+	class Foo(bge.types.KX_GameObject, metaclass=bxt.types.GameOb):
+		def __init__(self, old_owner):
+			# Do not use old_owner; it will have been destroyed! Also, you don't
+			# need to call KX_GameObject.__init__.
+			pass
+
+		@bxt.types.expose_fun
+		def update(self):
+			self.worldPosition.z += 1.0
+
+	See also BX_GameObject.
+	'''
+
+	def __init__(self, name, bases, attrs):
+		'''Runs just after the class is defined.'''
+#		print("GameOb.__init__(%s, %s, %s, %s)" % (self, name, bases, attrs))
+
+		module = sys.modules[attrs['__module__']]
+		prefix = name + '_'
+		if '_prefix' in attrs:
+			prefix = attrs['_prefix']
+		for attrname, value in attrs.items():
+			if getattr(value, '_expose', False):
+				self.expose_method(attrname, value, module, prefix)
+				# Prevent this from running again for subclasses.
+				value._expose = False
+
+		super(GameOb, self).__init__(name, bases, attrs)
+
+	def __call__(self, ob=None):
+		'''Provide the current game object as an argument to the constructor.
+		Runs when the class is instantiated.'''
+#		print("GameOb.__call__(%s, %s)" % (self, ob))
+		if ob == None:
+			ob = bge.logic.getCurrentController().owner
+		if 'template' in ob:
+			ob = bxt.utils.replaceObject(ob['template'], ob)
+		return super(GameOb, self).__call__(ob)
+
+	def expose_method(self, methodName, method, module, prefix):
+		'''Expose a single method as a top-level module funciton. This must
+		be done in a separate function so that it may act as a closure.'''
+		def method_wrapper():
+			o = bge.logic.getCurrentController().owner
+			return method(o)
+
+		method_wrapper.__name__ = '%s%s' % (prefix, methodName)
+		method_wrapper.__doc__ = method.__doc__
+		setattr(module, method_wrapper.__name__, method_wrapper)
+
 class expose:
 	'''Exposes class methods as top-level module functions.
 
@@ -190,11 +254,8 @@ class expose:
 		method_wrapper.__doc__ = method.__doc__
 		setattr(module, method_wrapper.__name__, method_wrapper)
 
-class BX_GameObject:
+class BX_GameObject(metaclass=GameOb):
 	'''Basic convenience extensions to KX_GameObject. Use as a mixin.'''
-
-	def __init__(self):
-		print("Init for BX_GameObject", self)
 
 	def add_state(self, state):
 		'''Add a set of states to this object's state.'''
