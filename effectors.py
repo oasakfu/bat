@@ -20,15 +20,17 @@ Created on 13/02/2010
 @author: alex
 '''
 
-import bxt
+import bge
 import mathutils
+
+import bxt
 
 DEBUG = False
 
-@bxt.types.gameobject(prefix='FF_')
-class ForceField(bxt.types.ProxyGameObject):
-	def __init__(self, owner):
-		bxt.types.ProxyGameObject.__init__(self, owner)
+class ForceField(bxt.types.BX_GameObject, bge.types.KX_GameObject):
+	_prefix = 'FF_'
+
+	def __init__(self, old_owner):
 		self.set_state(2)
 		if DEBUG:
 			self.forceMarker = bxt.utils.add_object('VectorMarker', 0)
@@ -104,10 +106,9 @@ class ForceField(bxt.types.ProxyGameObject):
 		local space.'''
 		pass
 
-@bxt.types.gameobject()
 class Linear(ForceField):
-	def __init__(self, owner):
-		ForceField.__init__(self, owner)
+	def __init__(self, old_owner):
+		ForceField.__init__(self, old_owner)
 
 	def get_force_direction(self, posLocal):
 		return bxt.math.to_local_vec(self, self.getAxisVect(bxt.math.YAXIS))
@@ -120,7 +121,6 @@ class Linear(ForceField):
 		'''
 		return distance / limit
 
-@bxt.types.gameobject()
 class Repeller3D(ForceField):
 	'''
 	Repels objects away from the force field's origin.
@@ -134,13 +134,12 @@ class Repeller3D(ForceField):
 	FFZCut: If True, force will only be applied to objects underneath the force
 		field's XY plane (in force field local space).
 	'''
-	def __init__(self, owner):
-		ForceField.__init__(self, owner)
+	def __init__(self, old_owner):
+		ForceField.__init__(self, old_owner)
 
 	def get_force_direction(self, posLocal):
 		return posLocal
 
-@bxt.types.gameobject()
 class Repeller2D(ForceField):
 	'''
 	Repels objects away from the force field's origin on the local XY axis.
@@ -154,15 +153,14 @@ class Repeller2D(ForceField):
 	FFZCut: If True, force will only be applied to objects underneath the force
 		field's XY plane (in force field local space).
 	'''
-	def __init__(self, owner):
-		ForceField.__init__(self, owner)
+	def __init__(self, old_owner):
+		ForceField.__init__(self, old_owner)
 
 	def get_force_direction(self, posLocal):
 		vec = mathutils.Vector(posLocal)
 		vec.z = 0.0
 		return vec
 
-@bxt.types.gameobject()
 class Vortex2D(ForceField):
 	'''
 	Propels objects around the force field's origin, so that the rotate around
@@ -183,8 +181,8 @@ class Vortex2D(ForceField):
 		field's XY plane (in force field local space).
 	'''
 
-	def __init__(self, owner):
-		ForceField.__init__(self, owner)
+	def __init__(self, old_owner):
+		ForceField.__init__(self, old_owner)
 
 	def get_force_direction(self, posLocal):
 		tan = mathutils.Vector((posLocal.y, 0.0 - posLocal.x, 0.0))

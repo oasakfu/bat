@@ -17,6 +17,7 @@
 
 import weakref
 
+import bge
 from bge import logic
 import mathutils
 
@@ -32,19 +33,19 @@ BUBBLE_BIAS = 0.4
 
 DEBUG = False
 
-@bxt.types.gameobject('on_collision', prefix='')
-class Water(bxt.types.ProxyGameObject):
+class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
+	_prefix = ''
+
 	S_INIT = 1
 	S_IDLE = 2
 	S_FLOATING = 3
 
-	def __init__(self, owner):
+	def __init__(self, old_owner):
 		'''
 		Create a water object that can respond to things touching it. The mesh
 		is assumed to be a globally-aligned XY plane that passes through the
 		object's origin.
 		'''
-		bxt.types.ProxyGameObject.__init__(self, owner)
 		self['IsWater'] = True
 
 		self.set_default_prop('RippleInterval', 20)
@@ -55,12 +56,12 @@ class Water(bxt.types.ProxyGameObject):
 		self.set_default_prop('VolumeCol', '#22448880')
 
 		self.InstanceAngle = 0.0
-		self.CurrentFrame = 0
+		self.currentFrame = 0
 
 		if DEBUG:
 			self.floatMarker = bxt.utils.add_object('VectorMarker', 0)
 
-		self.FloatingActors = weakref.WeakSet()
+		self.floatingActors = weakref.WeakSet()
 		self.set_state(self.S_IDLE)
 
 	def spawn_surface_decal(self, name, position):
@@ -78,7 +79,7 @@ class Water(bxt.types.ProxyGameObject):
 		decal = bxt.utils.add_object(name, 0)
 		decal.worldPosition = pos
 		decal.worldOrientation = oMat
-		decal.setParent(self.unwrap())
+		decal.setParent(self)
 
 	def spawn_bubble(self, actor):
 		if self.isBubble(actor):
@@ -101,11 +102,10 @@ class Water(bxt.types.ProxyGameObject):
 		#
 		# Create object.
 		#
-		bubble = logic.getCurrentScene().addObject('Bubble', self.unwrap())
-		bubble = bxt.types.wrap(bubble)
+		bubble = logic.getCurrentScene().addObject('Bubble', self)
 		bubble.worldPosition = pos
-		self.FloatingActors.add(bubble)
-		self.set_state(self.S_FLOATING)
+		self.floatingActors.add(bubble)
+		self.set_state(Water.S_FLOATING)
 
 	def get_submerged_factor(self, actor):
 		'''Determine the fraction of the object that is inside the water. This
@@ -233,7 +233,7 @@ class Water(bxt.types.ProxyGameObject):
 		if not force and 'Water_LastFrame' in actor:
 			# This is at least the first time the object has touched the water.
 			# Make sure it has moved a minimum distance before adding a ripple.
-			if actor['Water_LastFrame'] == self.CurrentFrame:
+			if actor['Water_LastFrame'] == self.currentFrame:
 				actor['Water_CanRipple'] = True
 
 			if not actor['Water_CanRipple']:
@@ -245,7 +245,7 @@ class Water(bxt.types.ProxyGameObject):
 				# The object hasn't moved fast enough to cause another event.
 				return
 
-		actor['Water_LastFrame'] = self.CurrentFrame
+		actor['Water_LastFrame'] = self.currentFrame
 		actor['Water_CanRipple'] = False
 		self.spawn_surface_decal('Ripple', actor.worldPosition)
 
@@ -260,42 +260,40 @@ class Water(bxt.types.ProxyGameObject):
 
 		forceFields = []
 		for child in self.children:
-			if not bxt.types.has_wrapper(child):
-				continue
-			wrapper = bxt.types.get_wrapper(child)
-			if isinstance(wrapper, bxt.effectors.ForceField):
-				forceFields.append(wrapper)
+			if isinstance(child, bxt.effectors.ForceField):
+				forceFields.append(child)
 
 		# Transfer floatation to hierarchy root (since children can't be
 		# dynamic).
-		self.FloatingActors.update(hitActors)
-		for actor in self.FloatingActors.copy():
+		self.floatingActors.update(hitActors)
+		for actor in self.floatingActors.copy():
 			if actor.invalid:
-				self.FloatingActors.remove(actor)
+				self.floatingActors.remove(actor)
 				continue
 
-			if actor.parent != None:
-				self.FloatingActors.remove(actor)
-				parent = bxt.types.wrap(actor.parent)
+			if actor.parent != None and not actor.parent in self.floatingActors:
+				self.floatingActors.remove(actor)
+				parent = actor.parent
 				parent['CurrentBuoyancy'] = actor['CurrentBuoyancy']
 				actor['CurrentBuoyancy'] = actor['Buoyancy']
 				parent['Oxygen'] = actor['Oxygen']
 				actor['Oxygen'] = 1.0
-				self.FloatingActors.add(parent)
+				self.floatingActors.add(parent)
+				print (parent['CurrentBuoyancy'])
 
 		# Apply buoyancy to actors.
-		for actor in self.FloatingActors.copy():
+		for actor in self.floatingActors.copy():
 			self.set_defaults(actor)
 			submergedFactor = self.float(actor)
 			if submergedFactor < 0.1:
-				self.FloatingActors.discard(actor)
+				self.floatingActors.discard(actor)
 				actor['Floating'] = False
 			else:
 				actor['Floating'] = True
 				for ff in forceFields:
 					ff.touchedSingle(actor, submergedFactor)
 
-		if len(self.FloatingActors) > 0:
+		if len(self.floatingActors) > 0:
 			self.set_state(self.S_FLOATING)
 		else:
 			self.set_state(self.S_IDLE)
@@ -303,21 +301,22 @@ class Water(bxt.types.ProxyGameObject):
 		#
 		# Increase the frame counter.
 		#
-		self.CurrentFrame = ((self.CurrentFrame + 1) %
+		self.currentFrame = ((self.currentFrame + 1) %
 			self['RippleInterval'])
 
 	def set_defaults(self, actor):
 		if '_bxt.waterInit' in actor:
 			return
-		actor.set_default_prop('Oxygen', 1.0)
-		actor.set_default_prop('OxygenDepletionRate', 0.005)
-		actor.set_default_prop('Buoyancy', 3.0)
-		actor.set_default_prop('CurrentBuoyancy', actor['Buoyancy'])
-		actor.set_default_prop('FloatRadius', 1.1)
-		actor.set_default_prop('SinkFactor', 0.002)
-		actor.set_default_prop('MinRippleSpeed', 1.0)
+		bxt.utils.set_default_prop(actor, 'Oxygen', 1.0)
+		bxt.utils.set_default_prop(actor, 'OxygenDepletionRate', 0.005)
+		bxt.utils.set_default_prop(actor, 'Buoyancy', 0.7)
+		bxt.utils.set_default_prop(actor, 'CurrentBuoyancy', actor['Buoyancy'])
+		bxt.utils.set_default_prop(actor, 'FloatRadius', 1.1)
+		bxt.utils.set_default_prop(actor, 'SinkFactor', 0.002)
+		bxt.utils.set_default_prop(actor, 'MinRippleSpeed', 1.0)
 		actor['_bxt.waterInit'] = True
 
+	@bxt.types.expose_fun
 	@bxt.utils.controller_cls
 	def on_collision(self, c):
 		'''
@@ -336,7 +335,7 @@ class Water(bxt.types.ProxyGameObject):
 			if not s.positive:
 				continue
 			for ob in s.hitObjectList:
-				actors.add(bxt.types.wrap(ob))
+				actors.add(ob)
 
 		#
 		# Call Water.on_collision regardless of collisions: this allows for one more
@@ -347,7 +346,6 @@ class Water(bxt.types.ProxyGameObject):
 	def isBubble(self, actor):
 		return actor.name == 'Bubble'
 
-@bxt.types.gameobject()
 class ShapedWater(Water):
 	'''Special water that does not need to be flat.'''
 	
