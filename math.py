@@ -325,6 +325,11 @@ class ArcRay(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 	RESOLUTION = 6
 
 	def __init__(self, old_owner):
+		self.set_default_prop('angle', ArcRay.ANGLE)
+		self.set_default_prop('resolution', ArcRay.RESOLUTION)
+		self.set_default_prop('radius', ArcRay.RADIUS)
+		self.set_default_prop('prop', '')
+
 		self._createPoints()
 		self.lastHitPoint = ORIGIN.copy()
 		self.lastHitNorm = ZAXIS.copy()
@@ -336,16 +341,13 @@ class ArcRay(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		'''Generate an arc of line segments to cast rays along.'''
 		self.path = []
 
-		self.set_default_prop('angle', ArcRay.ANGLE)
-		self.set_default_prop('resolution', ArcRay.RESOLUTION)
-		self.set_default_prop('radius', ArcRay.RADIUS)
-		self.set_default_prop('prop', '')
-
 		revolutions = self['angle'] / 360.0
 		endAngle = math.radians(self['angle'])
 
 		numSegments = int(math.ceil(revolutions * self['resolution']))
 		increment = endAngle / numSegments
+		if DEBUG:
+			print(numSegments, increment)
 
 		for i in range(numSegments + 1):
 			angle = increment * i
