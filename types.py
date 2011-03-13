@@ -279,6 +279,38 @@ class BX_GameObject(metaclass=GameOb):
 		exist.'''
 		bxt.utils.set_default_prop(self, propName, defaultValue)
 
+	def find_descendant(self, propCriteria):
+		'''Finds a descendant of this object that matches a set of criteria.
+		This is a recursive, breadth-first search.
+
+		@param propCriteria: A list of tuples: (property name, value). If any
+				one of these doesn't match a given child, it will not be
+				returned.
+		@return: The first descendant that matches the criteria, or None if no
+				such child exists.'''
+		def find_recursive(objects):
+			match = None
+			for child in objects:
+				matches = True
+				for (name, value) in propCriteria:
+					if name in child and child[name] == value:
+						continue
+					else:
+						matches = False
+						break
+				if matches:
+					match = child
+
+			if match != None:
+				return match
+			for child in objects:
+				match = find_recursive(child.children)
+				if match:
+					return match
+			return None
+
+		return find_recursive(self.children)
+
 class gameobject:
 	'''Extends a class to wrap KX_GameObjects. This decorator accepts any number
 	of strings as arguments. Each string should be the name of a member to

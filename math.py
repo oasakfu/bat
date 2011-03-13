@@ -377,5 +377,5 @@ class ArcRay(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		wn = to_world_vec(self, self.lastHitNorm)
 		if DEBUG:
 			self.marker.worldPosition = wp
-
+			print(self, "hit", ob)
 		return ob, wp, wn
