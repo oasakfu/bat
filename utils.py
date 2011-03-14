@@ -390,7 +390,7 @@ class EventListener:
 		pass
 
 class Event:
-	def __init__(self, message, body):
+	def __init__(self, message, body=None):
 		self.message = message
 		self.body = body
 
