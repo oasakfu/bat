@@ -178,7 +178,7 @@ def ray_cast_p2p(objto, objfrom, dist = 0.0, prop = ''):
 	face = 1
 	xray = 1
 	poly = 0
-	return bxt.types.get_wrapped_cursor().rayCast(objto, objfrom, dist, prop,
+	return bxt.utils.get_cursor().rayCast(objto, objfrom, dist, prop,
 			face, xray, poly)
 
 def slow_copy_rot(o, goal, factor):

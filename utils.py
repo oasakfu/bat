@@ -30,6 +30,8 @@ def replaceObject(name, original, time = 0):
 	newObj = scene.addObject(name, original, time)
 	for prop in original.getPropertyNames():
 		newObj[prop] = original[prop]
+	if original.parent != None:
+		newObj.setParent(original.parent)
 	original.endObject()
 	return newObj
 
@@ -123,10 +125,7 @@ def some_sensors_positive(f):
 def get_cursor():
 	'''Gets the 'Cursor' object in the current scene. This object can be used
 	when you need to call a method on a KX_GameObject, but you don't care which
-	object it gets called on.
-
-	See also bxt.types.get_wrapped_cursor.
-	'''
+	object it gets called on.'''
 
 	return logic.getCurrentScene().objects['Cursor']
 
@@ -399,8 +398,7 @@ class Event:
 
 class WeakEvent(Event):
 	'''An event whose body my be destroyed before it is read. Use this when
-	the body is a game object (which will need to be wrapped in
-	bxt.types.ProxyGameObject).'''
+	the body is a game object.'''
 	def __init__(self, message, body):
 		def autoremove(target):
 			self._body = None
