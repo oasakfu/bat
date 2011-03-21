@@ -16,65 +16,10 @@
 #
 
 import sys
-import weakref
 
 import bge
 
 import bxt.utils
-
-class weakprops:
-	'''Creates attributes on an object that store weak references to whatever
-	is assigned to them. If the assignee is deleted, the corresponding attribute
-	will be set to None. The initial value is also None. Example usage:
-
-	@bxt.types.weakprops('foo', 'bar')
-	class Baz:
-		def bork(self, gameObject):
-			self.foo = gameObject
-			self.bar = gameObject.parent
-
-		def update(self):
-			if self.foo != None:
-				self.foo.worldPosition.z += 1
-	'''
-
-	def __init__(self, *propnames):
-		self.propnames = propnames
-		self.converted = False
-
-	def __call__(self, cls):
-		if not self.converted:
-			self.create_props(cls)
-			self.converted = True
-		return cls
-
-	def create_props(self, cls):
-		for name in self.propnames:
-			hiddenName = '_wp_' + name
-			self.create_prop(cls, name, hiddenName)
-
-	def create_prop(self, cls, name, hiddenName):
-		def wp_getter(slf):
-			value = getattr(slf, hiddenName)
-			if value != None:
-				return value()
-			else:
-				return None
-
-		def wp_setter(slf, value):
-			def autoremove(ref):
-				setattr(slf, hiddenName, None)
-
-			if value == None:
-				setattr(slf, hiddenName, None)
-			else:
-				setattr(slf, hiddenName, weakref.ref(value, autoremove))
-
-		def wp_del(slf):
-			delattr(slf, hiddenName)
-
-		setattr(cls, hiddenName, None)
-		setattr(cls, name, property(wp_getter, wp_setter, wp_del))
 
 def expose_fun(f):
 	'''Expose a method as a top-level function. Must be used in conjunction with
@@ -133,8 +78,13 @@ class GameOb(type):
 		'''Expose a single method as a top-level module funciton. This must
 		be done in a separate function so that it may act as a closure.'''
 		def method_wrapper():
-			o = bge.logic.getCurrentController().owner
-			return method(o)
+			try:
+				o = bge.logic.getCurrentController().owner
+				return getattr(o, methodName)()
+			except:
+				bge.logic.getCurrentScene().suspend()
+				bxt.utils._debug_leaking_objects()
+				raise
 
 		method_wrapper.__name__ = '%s%s' % (prefix, methodName)
 		method_wrapper.__doc__ = method.__doc__

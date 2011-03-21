@@ -61,7 +61,7 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		if DEBUG:
 			self.floatMarker = bxt.utils.add_object('VectorMarker', 0)
 
-		self.floatingActors = weakref.WeakSet()
+		self.floatingActors = bxt.utils.GameObjectSet()
 		self.set_state(self.S_IDLE)
 
 	def spawn_surface_decal(self, name, position):
@@ -267,10 +267,6 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		# dynamic).
 		self.floatingActors.update(hitActors)
 		for actor in self.floatingActors.copy():
-			if actor.invalid:
-				self.floatingActors.remove(actor)
-				continue
-
 			if actor.parent != None and not actor.parent in self.floatingActors:
 				self.floatingActors.remove(actor)
 				parent = actor.parent
@@ -285,6 +281,12 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		for actor in self.floatingActors.copy():
 			self.set_defaults(actor)
 			submergedFactor = self.float(actor)
+
+			if actor['Oxygen'] <= 0.0 and hasattr(actor, 'drown'):
+				actor.drown()
+				self.floatingActors.discard(actor)
+				actor['Floating'] = False
+
 			if submergedFactor < 0.1:
 				self.floatingActors.discard(actor)
 				actor['Floating'] = False
@@ -330,7 +332,7 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		#
 		# Create a list of all colliding objects.
 		#
-		actors = weakref.WeakSet()
+		actors = set()
 		for s in c.sensors:
 			if not s.positive:
 				continue
