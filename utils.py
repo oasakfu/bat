@@ -222,14 +222,11 @@ def weakprop(name):
 				if value == None:
 					setattr(slf, hiddenName, None)
 				elif hasattr(value, 'invalid') and value.invalid:
-					print('Warning: stale reference to invalid game object.')
 					setattr(slf, hiddenName, None)
 					value = None
-			print('Getting %s from %s =' % (name, hiddenName), value)
 			return value
 	
 		def wp_setter(slf, value):
-			print('Setting %s as %s =' % (name, hiddenName), value)
 			if value == None:
 				setattr(slf, hiddenName, None)
 			else:
