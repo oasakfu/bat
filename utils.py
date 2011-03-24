@@ -22,7 +22,7 @@ from functools import wraps
 from bge import logic, types
 import weakref
 
-DEBUG = True
+DEBUG = False
 
 def _debug_leaking_objects():
 	import gc
@@ -483,8 +483,11 @@ class WeakPriorityQueue:
 		return i
 
 	def _discard(self, ref):
-		self.queue.remove(ref)
-		del self.priorities[ref]
+		try:
+			self.queue.remove(ref)
+			del self.priorities[ref]
+		except KeyError:
+			pass
 
 	def discard(self, item):
 		'''Remove an item from the queue.
@@ -510,6 +513,45 @@ class WeakPriorityQueue:
 	def top(self):
 		return self[-1]
 
+class GameObjectPriorityQueue:
+	def __init__(self):
+		self.q = WeakPriorityQueue()
+		self.deadBag = weakref.WeakSet()
+
+	def __contains__(self, item):
+		if item.invalid:
+			return False
+		return item in self.q
+
+	def push(self, item, priority):
+		print('push', item)
+		self.q.push(item, priority)
+		self._clean_refs()
+
+	def discard(self, item):
+		print('discard', item)
+		self.q.discard(item)
+		self._clean_refs()
+
+	def top(self):
+		for item in reversed(self.q):
+			if item.invalid:
+				self._flag_removal(item)
+			else:
+				return item
+		raise IndexError('This queue is empty.')
+
+	def _flag_removal(self, item):
+		'''Mark an object for garbage collection. Actual removal happens at the
+		next explicit mutation (add() or discard()).'''
+		self.deadBag.add(item)
+
+	def _clean_refs(self):
+		'''Remove objects marked as being dead.'''
+		for item in self.deadBag:
+			self.q.discard(item)
+		self.deadBag.clear()
+
 @singleton()
 class EventBus:
 	'''Delivers messages to listeners.'''
@@ -520,7 +562,8 @@ class EventBus:
 		self.eventCache = {}
 
 	def addListener(self, listener):
-		print("added event listener", listener)
+		if DEBUG:
+			print("added event listener", listener)
 		if hasattr(listener, 'invalid'):
 			self.gamobListeners.add(listener)
 		else:
