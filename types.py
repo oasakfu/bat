@@ -16,22 +16,78 @@
 #
 
 import sys
+import weakref
 
 import bge
 
 import bxt.utils
 
-def expose_fun(f):
+DEBUG = False
+
+#
+# Game object wrappers and such
+#
+
+def expose(f):
 	'''Expose a method as a top-level function. Must be used in conjunction with
 	the GameOb metaclass.'''
 	f._expose = True
 	return f
 
+class Singleton(type):
+	'''A metaclass that makes singletons. Methods marked with the expose
+	decorator will be promoted to top-level functions, and can therefore be
+	called from a logic brick.'''
+
+	def __init__(self, name, bases, attrs):
+		'''Runs just after the class is defined.'''
+#		print("Singleton.__init__(%s, %s, %s, %s)" % (self, name, bases, attrs))
+
+		module = sys.modules[attrs['__module__']]
+		prefix = name + '_'
+		if '_prefix' in attrs:
+			prefix = attrs['_prefix']
+		for attrname, value in attrs.items():
+			if getattr(value, '_expose', False):
+				self.expose_method(attrname, value, module, prefix)
+				# Prevent this from running again for subclasses.
+				value._expose = False
+
+		self.instance = None
+
+		super(Singleton, self).__init__(name, bases, attrs)
+
+		# Instantiate now - some Singletons only exist as listeners
+		self()
+
+	def __call__(self):
+		'''Provide the current game object as an argument to the constructor.
+		Runs when the class is instantiated.'''
+#		print("Singleton.__call__(%s)" % (self))
+		if self.instance == None:
+			self.instance = super(Singleton, self).__call__()
+		return self.instance
+
+	def expose_method(self, methodName, method, module, prefix):
+		'''Expose a single method as a top-level module funciton. This must
+		be done in a separate function so that it may act as a closure.'''
+		def method_wrapper():
+			try:
+				return getattr(self(), methodName)()
+			except:
+				bge.logic.getCurrentScene().suspend()
+				bxt.utils._debug_leaking_objects()
+				raise
+
+		method_wrapper.__name__ = '%s%s' % (prefix, methodName)
+		method_wrapper.__doc__ = method.__doc__
+		setattr(module, method_wrapper.__name__, method_wrapper)
+
 class GameOb(type):
 	'''A metaclass that makes a class neatly wrap game objects:
 	 - The class constructor can be called from a logic brick, to wrap the
 	   logic brick's owner.
-	 - Methods marked with the expose_fun decorator will be promoted to
+	 - Methods marked with the expose decorator will be promoted to
 	   top-level functions, and can therefore be called from a logic brick.
 	For example:
 
@@ -41,7 +97,7 @@ class GameOb(type):
 			# need to call KX_GameObject.__init__.
 			pass
 
-		@bxt.types.expose_fun
+		@bxt.types.expose
 		def update(self):
 			self.worldPosition.z += 1.0
 
@@ -147,3 +203,396 @@ class BX_GameObject(metaclass=GameOb):
 			return None
 
 		return find_recursive(self.children)
+
+#
+# Containers
+#
+
+def weakprop(name):
+	'''Creates a property that stores a weak reference to whatever is assigned
+	to it. If the assignee is deleted, the getter will return None. Example
+	usage:
+
+	class Baz:
+		foo = bxt.types.weakprop('foo')
+
+		def bork(self, gameObject):
+			self.foo = gameObject
+
+		def update(self):
+			if self.foo != None:
+				self.foo.worldPosition.z += 1
+	'''
+	hiddenName = '_wp_' + name
+
+	def createweakprop(hiddenName):
+		def wp_getter(slf):
+			ref = None
+			try:
+				ref = getattr(slf, hiddenName)
+			except AttributeError:
+				pass
+
+			value = None
+			if ref != None:
+				value = ref()
+				if value == None:
+					setattr(slf, hiddenName, None)
+				elif hasattr(value, 'invalid') and value.invalid:
+					setattr(slf, hiddenName, None)
+					value = None
+			return value
+	
+		def wp_setter(slf, value):
+			if value == None:
+				setattr(slf, hiddenName, None)
+			else:
+				ref = weakref.ref(value)
+				setattr(slf, hiddenName, ref)
+
+		return property(wp_getter, wp_setter)
+
+	return createweakprop(hiddenName)
+
+class GameObjectSet:
+	'''A set for PyObjectPlus objects. This container ensures that its contents
+	are valid (living) game objects.
+
+	As usual, you shouldn't change the contents of the set while iterating over
+	it. However, an object dying in the scene won't invalidate existing
+	iterators.'''
+
+	def __init__(self):
+		self.bag = set()
+		self.deadBag = set()
+
+	def copy(self):
+		clone = GameObjectSet()
+		clone.bag = self.bag.copy()
+		clone.deadBag = self.deadBag.copy()
+		clone._clean_refs()
+		return clone
+
+	def __contains__(self, item):
+		if item.invalid:
+			if item in self.bag:
+				self._flag_removal(item)
+			return False
+		else:
+			return item in self.bag
+
+	def __iter__(self):
+		for item in self.bag:
+			if item.invalid:
+				self._flag_removal(item)
+			else:
+				yield item
+
+	def __len__(self):
+		# Unfortunately the only way to be sure is to check each object!
+		count = 0
+		for item in self.bag:
+			if item.invalid:
+				self._flag_removal(item)
+			else:
+				count += 1
+		return count
+
+	def add(self, item):
+		self._clean_refs()
+		if not item.invalid:
+			self.bag.add(item)
+
+	def discard(self, item):
+		self.bag.discard(item)
+		self._clean_refs()
+
+	def remove(self, item):
+		self.bag.remove(item)
+		self._clean_refs()
+
+	def update(self, iterable):
+		self.bag.update(iterable)
+		self._clean_refs()
+
+	def difference_update(self, iterable):
+		self.bag.difference_update(iterable)
+		self._clean_refs()
+
+	def intersection_update(self, iterable):
+		self.bag.intersection_update(iterable)
+		self._clean_refs()
+
+	def clear(self):
+		self.bag.clear()
+		self.deadBag.clear()
+
+	def _flag_removal(self, item):
+		'''Mark an object for garbage collection. Actual removal happens at the
+		next explicit mutation (add() or discard()).'''
+		self.deadBag.add(item)
+
+	def _clean_refs(self):
+		'''Remove objects marked as being dead.'''
+		self.bag.difference_update(self.deadBag)
+		self.deadBag.clear()
+
+class WeakPriorityQueue:
+	'''A poor man's associative priority queue. This is likely to be slow. It is
+	only meant to contain a small number of items. Don't use this to store game
+	objects; use GameObjectPriorityQueue instead.
+	'''
+
+	def __init__(self):
+		'''Create a new, empty priority queue.'''
+
+		self.queue = []
+		self.priorities = {}
+
+	def __len__(self):
+		return len(self.queue)
+
+	def __getitem__(self, y):
+		'''Get the yth item from the queue. 0 is the bottom (oldest/lowest
+		priority); -1 is the top (youngest/highest priority).
+		'''
+
+		return self.queue[y]()
+
+	def __contains__(self, item):
+		ref = weakref.ref(item)
+		return ref in self.priorities
+
+	def _index(self, ref, *args, **kwargs):
+		return self.queue.index(ref, *args, **kwargs)
+
+	def index(self, item, *args, **kwargs):
+		return self._index(weakref.ref(item), *args, **kwargs)
+
+	def push(self, item, priority):
+		'''Add an item to the end of the queue. If the item is already in the
+		queue, it is removed and added again using the new priority.
+
+		Parameters:
+		item:     The item to store in the queue.
+		priority: Items with higher priority will be stored higher on the queue.
+		          0 <= priority. (Integer)
+		'''
+
+		def autoremove(r):
+			self._discard(r)
+
+		ref = weakref.ref(item, autoremove)
+
+		if ref in self.priorities:
+			self.discard(item)
+
+		i = len(self.queue)
+		while i > 0:
+			refOther = self.queue[i - 1]
+			priOther = self.priorities[refOther]
+			if priOther <= priority:
+				break
+			i -= 1
+		self.queue.insert(i, ref)
+
+		self.priorities[ref] = priority
+
+		return i
+
+	def _discard(self, ref):
+		try:
+			self.queue.remove(ref)
+			del self.priorities[ref]
+		except KeyError:
+			pass
+
+	def discard(self, item):
+		'''Remove an item from the queue.
+
+		Parameters:
+		key: The key that was used to insert the item.
+		'''
+		self._discard(weakref.ref(item))
+
+	def pop(self):
+		'''Remove the highest item in the queue.
+
+		Returns: the item that is being removed.
+
+		Raises:
+		IndexError: if the queue is empty.
+		'''
+
+		ref = self.queue.pop()
+		del self.priorities[ref]
+		return ref()
+
+	def top(self):
+		return self[-1]
+
+class GameObjectPriorityQueue:
+	def __init__(self):
+		self.q = WeakPriorityQueue()
+		self.deadBag = weakref.WeakSet()
+
+	def __contains__(self, item):
+		if item.invalid:
+			return False
+		return item in self.q
+
+	def push(self, item, priority):
+		print('push', item)
+		self.q.push(item, priority)
+		self._clean_refs()
+
+	def discard(self, item):
+		print('discard', item)
+		self.q.discard(item)
+		self._clean_refs()
+
+	def top(self):
+		for item in reversed(self.q):
+			if item.invalid:
+				self._flag_removal(item)
+			else:
+				return item
+		raise IndexError('This queue is empty.')
+
+	def _flag_removal(self, item):
+		'''Mark an object for garbage collection. Actual removal happens at the
+		next explicit mutation (add() or discard()).'''
+		self.deadBag.add(item)
+
+	def _clean_refs(self):
+		'''Remove objects marked as being dead.'''
+		for item in self.deadBag:
+			self.q.discard(item)
+		self.deadBag.clear()
+
+#
+# Events
+#
+
+class EventBus(metaclass=Singleton):
+	'''Delivers messages to listeners.'''
+
+	def __init__(self):
+		self.listeners = weakref.WeakSet()
+		self.gamobListeners = GameObjectSet()
+		self.eventCache = {}
+
+	def addListener(self, listener):
+		if DEBUG:
+			print("added event listener", listener)
+		if hasattr(listener, 'invalid'):
+			self.gamobListeners.add(listener)
+		else:
+			self.listeners.add(listener)
+
+	def remListener(self, listener):
+		if hasattr(listener, 'invalid'):
+			self.gamobListeners.discard(listener)
+		else:
+			self.listeners.discard(listener)
+
+	def notify(self, event):
+		'''Send a message.'''
+		if DEBUG:
+			print('Sending', event)
+		for listener in self.listeners:
+			listener.onEvent(event)
+		for listener in self.gamobListeners:
+			listener.onEvent(event)
+		self.eventCache[event.message] = event
+
+	def replayLast(self, target, message):
+		'''Re-send a message. This should be used by new listeners that missed
+		out on the last message, so they know what state the system is in.'''
+
+		if message in self.eventCache:
+			event = self.eventCache[message]
+			target.onEvent(event)
+
+#class EventListener:
+#	'''Interface for an object that can receive messages.'''
+#	def onEvent(self, event):
+#		pass
+
+class Event:
+	def __init__(self, message, body=None):
+		self.message = message
+		self.body = body
+
+	def __str__(self):
+		return "Event(%s, %s)" % (str(self.message), str(self.body))
+
+class WeakEvent(Event):
+	'''An event whose body may be destroyed before it is read. Use this when
+	the body is a game object.'''
+
+	body = weakprop('body')
+
+	def __init__(self, message, body):
+		super(WeakEvent, self).__init__(message, body)
+
+#
+# State abstractions
+#
+
+class Counter:
+	'''Counts the frequency of objects. This should only be used temporarily and
+	then thrown away, as it keeps hard references to objects.
+	'''
+
+	def __init__(self):
+		self.map = {}
+		self.mode = None
+		self.max = 0
+		self.n = 0
+
+	def add(self, ob):
+		'''Add an object to this counter. If this object is the most frequent
+		so far, it will be stored in the member variable 'mode'.'''
+		count = 1
+		if ob in self.map:
+			count = self.map[ob] + 1
+		self.map[ob] = count
+		if count > self.max:
+			self.max = count
+			self.mode = ob
+		self.n = self.n + 1
+
+class FuzzySwitch:
+	'''A boolean that only switches state after a number of consistent impulses.
+	'''
+
+	def __init__(self, delayOn, delayOff, startOn):
+		self.delayOn = delayOn
+		self.delayOff = 0 - delayOff
+		self.on = startOn
+		if startOn:
+			self.current = self.delayOn
+		else:
+			self.current = self.delayOff
+
+	def turn_on(self):
+		self.current = max(0, self.current)
+		if self.on:
+			return
+
+		self.current += 1
+		if self.current == self.delayOn:
+			self.on = True
+
+	def turn_off(self):
+		self.current = min(0, self.current)
+		if not self.on:
+			return
+
+		self.current -= 1
+		if self.current == self.delayOff:
+			self.on = False
+
+	def is_on(self):
+		return self.on

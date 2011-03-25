@@ -61,7 +61,7 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		if DEBUG:
 			self.floatMarker = bxt.utils.add_object('VectorMarker', 0)
 
-		self.floatingActors = bxt.utils.GameObjectSet()
+		self.floatingActors = bxt.types.GameObjectSet()
 		self.set_state(self.S_IDLE)
 
 	def spawn_surface_decal(self, name, position):
@@ -318,7 +318,7 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		bxt.utils.set_default_prop(actor, 'MinRippleSpeed', 1.0)
 		actor['_bxt.waterInit'] = True
 
-	@bxt.types.expose_fun
+	@bxt.types.expose
 	@bxt.utils.controller_cls
 	def on_collision(self, c):
 		'''
