@@ -121,7 +121,8 @@ class BX_GameObject(metaclass=GameOb):
 
 		@param propCriteria: A list of tuples: (property name, value). If any
 				one of these doesn't match a given child, it will not be
-				returned.
+				returned. If value is None, it always matches (the object need
+				only have a property of the given name).
 		@return: The first descendant that matches the criteria, or None if no
 				such child exists.'''
 		def find_recursive(objects):
@@ -129,7 +130,7 @@ class BX_GameObject(metaclass=GameOb):
 			for child in objects:
 				matches = True
 				for (name, value) in propCriteria:
-					if name in child and child[name] == value:
+					if name in child and (value == None or child[name] == value):
 						continue
 					else:
 						matches = False
