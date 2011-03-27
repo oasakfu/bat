@@ -50,7 +50,7 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 
 		self.set_default_prop('RippleInterval', 20)
 		self.set_default_prop('DampingFactor', 0.1)
-		self.set_default_prop('Buoyancy', 1.0)
+		self.set_default_prop('Buoyancy', 0.1)
 		# Colour to use as filter when camera is under water
 		# (see Camera.CameraCollider)
 		self.set_default_prop('VolumeCol', '#22448880')
@@ -270,7 +270,8 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 			if actor.parent != None and not actor.parent in self.floatingActors:
 				self.floatingActors.remove(actor)
 				parent = actor.parent
-				parent['CurrentBuoyancy'] = actor['CurrentBuoyancy']
+				self.set_defaults(parent)
+				parent['CurrentBuoyancy'] = min(actor['CurrentBuoyancy'], parent['Buoyancy'])
 				actor['CurrentBuoyancy'] = actor['Buoyancy']
 				parent['Oxygen'] = actor['Oxygen']
 				actor['Oxygen'] = 1.0
@@ -311,7 +312,7 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 			return
 		bxt.utils.set_default_prop(actor, 'Oxygen', 1.0)
 		bxt.utils.set_default_prop(actor, 'OxygenDepletionRate', 0.005)
-		bxt.utils.set_default_prop(actor, 'Buoyancy', 0.7)
+		bxt.utils.set_default_prop(actor, 'Buoyancy', 0.1)
 		bxt.utils.set_default_prop(actor, 'CurrentBuoyancy', actor['Buoyancy'])
 		bxt.utils.set_default_prop(actor, 'FloatRadius', 1.1)
 		bxt.utils.set_default_prop(actor, 'SinkFactor', 0.002)
