@@ -160,7 +160,7 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 
 	def float(self, actor):
 		'''Adjust the velocity of an object to make it float on the water.
-		
+
 		Returns: True if the object is floating; False otherwise (e.g. if it has
 		sunk or emerged fully).
 		'''
@@ -351,7 +351,7 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 
 class ShapedWater(Water):
 	'''Special water that does not need to be flat.'''
-	
+
 	def __init__(self, owner):
 		Water.__init__(self, owner)
 

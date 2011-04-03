@@ -41,7 +41,7 @@ _NAMED_COLOURS = {
 	'darkred'   : '#331111',
 	'darkgreen' : '#113311',
 	'darkblue' : '#080833',
-	
+
 	'cargo' : '#36365a',
 }
 

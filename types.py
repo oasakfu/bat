@@ -281,7 +281,7 @@ def weakprop(name):
 					setattr(slf, hiddenName, None)
 					value = None
 			return value
-	
+
 		def wp_setter(slf, value):
 			if value == None:
 				setattr(slf, hiddenName, None)

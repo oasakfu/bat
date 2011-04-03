@@ -97,10 +97,10 @@ def controller_cls(f):
 @controller
 def allSensorsPositive(c):
 	'''Test whether all sensors are positive.
-	
+
 	Parameters:
 	c: A controller.
-	
+
 	Returns: True if all sensors are positive.'''
 	for s in c.sensors:
 		if not s.positive:
@@ -110,10 +110,10 @@ def allSensorsPositive(c):
 @controller
 def someSensorPositive(c):
 	'''Test whether at least one sensor is positive.
-	
+
 	Parameters:
 	c: A controller.
-	
+
 	Returns: True if at least one sensor is positive.'''
 	for s in c.sensors:
 		if s.positive:

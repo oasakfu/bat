@@ -55,13 +55,13 @@ def smerp(currentDelta, currentValue, target, speedFactor, responsiveness):
 	would result in a positive acceleration, take a second exponential
 	average of the acceleration. The resulting motion has smooth acceleration
 	and smooth deceleration, with minimal oscillation.'''
-	
+
 	targetDelta = (target - currentValue) * speedFactor
 	if (targetDelta * targetDelta > currentDelta * currentDelta):
 		currentDelta = currentDelta * (1.0 - responsiveness) + targetDelta * responsiveness
 	else:
 		currentDelta = targetDelta
-	
+
 	currentValue = currentValue + currentDelta
 	return currentDelta, currentValue
 
@@ -136,7 +136,7 @@ def to_local(referential, point):
 def to_world(referential, point):
 	'''Transform 'point' into world space. 'point' must be specified in the
 	coordinate space of 'referential'.
-	
+
 	Parameters:
 	referential: The object that defines the coordinate space to transform from.
 	             (KX_GameObject)
@@ -253,12 +253,12 @@ def quadNormal(p0, p1, p2, p3):
 	vb = p1 - p3
 	normal = va.cross(vb)
 	normal.normalize()
-	
+
 	if DEBUG:
 		centre = (p0 + p1 + p2 + p3) / 4.0
 		bge.render.drawLine(centre, centre + normal, bxt.render.RED.xyz)
 		bxt.render.draw_polyline([p0, p1, p2, p3], bxt.render.GREEN, cyclic=True)
-	
+
 	return normal
 
 def triangleNormal(p0, p1, p2):
@@ -267,12 +267,12 @@ def triangleNormal(p0, p1, p2):
 	vb = p2 - p0
 	normal = va.cross(vb)
 	normal.normalize()
-	
+
 	if DEBUG:
 		centre = (p0 + p1 + p2) / 3.0
 		bge.render.drawLine(centre, centre + normal, bxt.render.RED.xyz)
 		bxt.render.draw_polyline([p0, p1, p2], bxt.render.GREEN, cyclic=True)
-	
+
 	return normal
 
 def getRandomVector():
@@ -296,7 +296,7 @@ class Box2D:
 			self.xHigh = other.xHigh
 		if other.yHigh < self.yHigh:
 			self.yHigh = other.yHigh
-		
+
 		if other.xLow > self.xLow:
 			self.xLow = other.xLow
 		if other.yLow > self.yLow:

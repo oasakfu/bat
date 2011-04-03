@@ -211,4 +211,3 @@ def modulate_by_angv(c):
 	o = c.owner
 	angV = mathutils.Vector(o.getAngularVelocity(False))
 	_modulate(angV.magnitude, c)
-
