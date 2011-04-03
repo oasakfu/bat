@@ -204,6 +204,45 @@ class BX_GameObject(metaclass=GameOb):
 
 		return find_recursive(self.children)
 
+clsCache = {}
+def _get_class(qualifiedName):
+	if qualifiedName in clsCache:
+		return clsCache[qualifiedName]
+
+	parts = qualifiedName.split('.')
+	modName = '.'.join(parts[:-1])
+	m = __import__(modName)
+	for part in parts[1:]:
+		m = getattr(m, part)
+
+	clsCache[qualifiedName] = m
+	return m
+
+@bxt.utils.owner
+def mutate(o):
+	'''Convert an object to its preferred class, as defined by the object's
+	Class property. All existing references to the object will be invalidated,
+	unless the object is already of the specified class - in which case this
+	function has no effect.
+
+	@return: the new instance, or the old instance if it was already the
+	required type.'''
+
+	cls = _get_class(o['Class'])
+	if cls == o.__class__:
+		return o
+	else:
+		return cls(o)
+
+def add_and_mutate_object(scene, object, other=None, time=0):
+	'''Add an object to the scene, and mutate it according to its Class
+	property.'''
+
+	if other == None:
+		other = object
+	o = scene.addObject(object, other, time)
+	return mutate(o)
+
 #
 # Containers
 #
