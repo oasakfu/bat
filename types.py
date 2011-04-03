@@ -521,7 +521,7 @@ class EventBus(metaclass=Singleton):
 		self.gamobListeners = GameObjectSet()
 		self.eventCache = {}
 
-	def addListener(self, listener):
+	def add_listener(self, listener):
 		if DEBUG:
 			print("added event listener", listener)
 		if hasattr(listener, 'invalid'):
@@ -529,7 +529,7 @@ class EventBus(metaclass=Singleton):
 		else:
 			self.listeners.add(listener)
 
-	def remListener(self, listener):
+	def remove_listener(self, listener):
 		if hasattr(listener, 'invalid'):
 			self.gamobListeners.discard(listener)
 		else:
@@ -540,22 +540,22 @@ class EventBus(metaclass=Singleton):
 		if DEBUG:
 			print('Sending', event)
 		for listener in self.listeners:
-			listener.onEvent(event)
+			listener.on_event(event)
 		for listener in self.gamobListeners:
-			listener.onEvent(event)
+			listener.on_event(event)
 		self.eventCache[event.message] = event
 
-	def replayLast(self, target, message):
+	def replay_last(self, target, message):
 		'''Re-send a message. This should be used by new listeners that missed
 		out on the last message, so they know what state the system is in.'''
 
 		if message in self.eventCache:
 			event = self.eventCache[message]
-			target.onEvent(event)
+			target.on_event(event)
 
 #class EventListener:
 #	'''Interface for an object that can receive messages.'''
-#	def onEvent(self, event):
+#	def on_event(self, event):
 #		pass
 
 class Event:
