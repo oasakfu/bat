@@ -23,6 +23,50 @@ import bge
 import bxt.utils
 
 DEBUG = False
+PROFILE = True
+
+prof = None
+if PROFILE:
+	import time
+	prof = {}
+def print_stats(c):
+	if not c.sensors['sInfo'].positive:
+		return
+	if prof == None:
+		return
+
+	def timekey(stat):
+		return stat[1] / float(stat[2])
+	stats = sorted(prof.values(), key=timekey, reverse=True)
+
+	print('=== Execution Statistics ===')
+	print('Times are in milliseconds.')
+	print('{:<55} {:>6} {:>7} {:>6}'.format('FUNCTION', 'CALLS', 'SUM(ms)', 'AV(ms)'))
+	for stat in stats:
+		print('{:<55} {:>6} {:>7.0f} {:>6.2f}'.format(
+				stat[0], stat[2],
+				stat[1] * 1000,
+				(stat[1] / float(stat[2])) * 1000))
+class profile:
+	def __init__(self, name):
+		self.name = name
+
+	def __call__(self, fun):
+		if not PROFILE:
+			return fun
+		else:
+			def profile_fun(*args, **kwargs):
+				start = time.clock()
+				try:
+					return fun(*args, **kwargs)
+				finally:
+					duration = time.clock() - start
+					if not fun in prof:
+						prof[fun] = [self.name, duration, 1]
+					else:
+						prof[fun][1] += duration
+						prof[fun][2] += 1
+			return profile_fun
 
 #
 # Game object wrappers and such
@@ -71,6 +115,8 @@ class Singleton(type):
 	def expose_method(self, methodName, method, module, prefix):
 		'''Expose a single method as a top-level module funciton. This must
 		be done in a separate function so that it may act as a closure.'''
+
+		@profile('%s.%s%s' % (module.__name__, prefix, methodName))
 		def method_wrapper():
 			try:
 				return getattr(self(), methodName)()
@@ -133,6 +179,8 @@ class GameOb(type):
 	def expose_method(self, methodName, method, module, prefix):
 		'''Expose a single method as a top-level module funciton. This must
 		be done in a separate function so that it may act as a closure.'''
+
+		@profile('%s.%s%s' % (module.__name__, prefix, methodName))
 		def method_wrapper():
 			try:
 				o = bge.logic.getCurrentController().owner
