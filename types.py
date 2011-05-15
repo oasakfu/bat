@@ -23,13 +23,11 @@ import bge
 import bxt.utils
 
 DEBUG = False
-PROFILE = True
+PROFILE = False
+PROFILE2 = False
 
 prof = None
-if PROFILE:
-	import time
-	prof = {}
-def print_stats(c):
+def _print_stats(c):
 	if not c.sensors['sInfo'].positive:
 		return
 	if prof == None:
@@ -47,6 +45,18 @@ def print_stats(c):
 				stat[0], stat[2],
 				stat[1] * 1000,
 				(stat[1] / float(stat[2])) * 1000))
+def _print_stats2(c):
+	statprof_3k.stop()
+	statprof_3k.display()
+print_stats = None
+if PROFILE:
+	import time
+	prof = {}
+	print_stats = _print_stats
+elif PROFILE2:
+	import statprof_3k
+	statprof_3k.start()
+	print_stats = _print_stats2
 class profile:
 	def __init__(self, name):
 		self.name = name
