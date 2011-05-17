@@ -57,7 +57,7 @@ def ray_follow(o):
 	p = o.parent
 
 	origin = p.worldPosition
-	direction = p.getAxisVect([0.0, 0.0, 1.0])
+	direction = p.getAxisVect(bxt.math.ZAXIS)
 	through = origin + direction
 
 	hitOb, hitPoint, hitNorm = p.rayCast(
@@ -85,9 +85,55 @@ def ray_follow(o):
 	else:
 		o['Dist'] = bxt.math.lerp(targetDist, o['Dist'], o['Fact'])
 
-	pos = origin + (direction * o['Dist'])
+	o.worldPosition = origin + (direction * o['Dist'])
 
-	o.worldPosition = pos
+@bxt.utils.owner
+def orbit_follow(o):
+	vectTo = None
+	p = o.parent
+	origin = p.worldPosition
+	try:
+		vectTo = o['LastPos'] - origin
+	except KeyError:
+		o['LastPos'] = o.worldPosition
+		return
+
+	zlocal = p.getAxisVect(bxt.math.ZAXIS)
+	zcomponent = vectTo.project(zlocal)
+	targetDirection = vectTo - zcomponent
+	targetDirection.normalize()
+	through = origin + targetDirection
+
+	hitOb, hitPoint, hitNorm = p.rayCast(
+		through,		# obTo
+		origin,			# obFrom
+		o['RestDist'], 	# dist
+		'Ray',			# prop
+		1,				# face normal
+		1				# x-ray
+	)
+
+	targetDist = o['RestDist']
+	if hitOb and (hitNorm.dot(targetDirection) < 0):
+		#
+		# If dot > 0, the tracking object is inside another mesh.
+		# It's not perfect, but better not bring the camera forward
+		# in that case, or the camera will be inside too.
+		#
+		targetDist = (hitPoint - origin).magnitude
+
+	targetDist = targetDist * o['DistBias']
+
+	if targetDist < o['Dist']:
+		o['Dist'] = targetDist
+	else:
+		o['Dist'] = bxt.math.lerp(targetDist, o['Dist'], o['Fact'])
+
+	o['LastPos'] = origin + (targetDirection * o['Dist'])
+	o.worldPosition = o['LastPos']
+#	targetDirection.negate()
+	o.alignAxisToVect(zlocal, 1)
+	o.alignAxisToVect(targetDirection, 2)
 
 @bxt.utils.all_sensors_positive
 @bxt.utils.controller
