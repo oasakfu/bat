@@ -111,9 +111,6 @@ class Singleton(type):
 
 		super(Singleton, self).__init__(name, bases, attrs)
 
-		# Instantiate now - some Singletons only exist as listeners
-		self()
-
 	def __call__(self):
 		'''Provide the current game object as an argument to the constructor.
 		Runs when the class is instantiated.'''

@@ -83,7 +83,7 @@ def ray_follow(o):
 	if targetDist < o['Dist']:
 		o['Dist'] = targetDist
 	else:
-		o['Dist'] = bxt.math.lerp(targetDist, o['Dist'], o['FollowFac'])
+		o['Dist'] = bxt.math.lerp(o['Dist'], targetDist, o['FollowFac'])
 
 	o.worldPosition = origin + (direction * o['Dist'])
 
@@ -127,11 +127,10 @@ def orbit_follow(o):
 	if targetDist < o['Dist']:
 		o['Dist'] = targetDist
 	else:
-		o['Dist'] = bxt.math.lerp(targetDist, o['Dist'], o['FollowFac'])
+		o['Dist'] = bxt.math.lerp(o['Dist'], targetDist, o['FollowFac'])
 
 	o['LastPos'] = origin + (targetDirection * o['Dist'])
 	o.worldPosition = o['LastPos']
-#	targetDirection.negate()
 	o.alignAxisToVect(zlocal, 1)
 	o.alignAxisToVect(targetDirection, 2)
 

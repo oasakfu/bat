@@ -46,3 +46,8 @@ from . import types
 from . import utils
 from . import effectors
 from . import water
+
+#
+# Now that everything has been imported, create singletons.
+#
+types.EventBus()
