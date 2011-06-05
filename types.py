@@ -23,8 +23,8 @@ import bge
 import bxt.utils
 
 DEBUG = False
-PROFILE = False
-PROFILE2 = False
+PROFILE_BASIC = False
+PROFILE_STOCHASTIC = False
 
 prof = None
 def _print_stats(c):
@@ -46,23 +46,23 @@ def _print_stats(c):
 				stat[1] * 1000,
 				(stat[1] / float(stat[2])) * 1000))
 def _print_stats2(c):
-	statprof_3k.stop()
-	statprof_3k.display()
+	statprof.stop()
+	statprof.display()
 print_stats = None
-if PROFILE:
+if PROFILE_BASIC:
 	import time
 	prof = {}
 	print_stats = _print_stats
-elif PROFILE2:
-	import statprof_3k
-	statprof_3k.start()
+elif PROFILE_STOCHASTIC:
+	import statprof
+	statprof.start()
 	print_stats = _print_stats2
 class profile:
 	def __init__(self, name):
 		self.name = name
 
 	def __call__(self, fun):
-		if not PROFILE:
+		if not PROFILE_BASIC:
 			return fun
 		else:
 			def profile_fun(*args, **kwargs):
