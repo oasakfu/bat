@@ -46,16 +46,16 @@ def _print_stats(c):
 				stat[1] * 1000,
 				(stat[1] / float(stat[2])) * 1000))
 def _print_stats2(c):
-	statprof.stop()
-	statprof.display()
+	bxt.statprof.stop()
+	bxt.statprof.display()
 print_stats = None
 if PROFILE_BASIC:
 	import time
 	prof = {}
 	print_stats = _print_stats
 elif PROFILE_STOCHASTIC:
-	import statprof
-	statprof.start()
+	import bxt.statprof
+	bxt.statprof.start()
 	print_stats = _print_stats2
 class profile:
 	def __init__(self, name):
