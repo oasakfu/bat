@@ -574,6 +574,7 @@ class EventBus(metaclass=Singleton):
 	def __init__(self):
 		self.listeners = weakref.WeakSet()
 		self.gamobListeners = GameObjectSet()
+		self.eventQueue = []
 		self.eventCache = {}
 
 	def add_listener(self, listener):
@@ -589,6 +590,44 @@ class EventBus(metaclass=Singleton):
 			self.gamobListeners.discard(listener)
 		else:
 			self.listeners.discard(listener)
+
+	def enqueue(self, event, delay):
+		'''Queue a message for sending after a delay.
+
+		@param event The event to send.
+		@param delay The time to wait, in frames.'''
+		def queued_event_key(item):
+			return item[1]
+		self.eventQueue.append((event, delay))
+		self.eventQueue.sort(key=queued_event_key)
+
+	@expose
+	def process_queue(self):
+		'''Send queued messages that are ready.'''
+		if len(self.eventQueue) == 0:
+			return
+
+		# Decrement the frame counter for each queued message.
+		newQueue = []
+		pending = []
+		for event, delay in self.eventQueue:
+			delay -= 1
+			if delay <= 0:
+				print("Dispatching", event.message)
+				pending.append(event)
+			else:
+				print("Delaying", event.message, delay)
+				newQueue.append((event, delay))
+
+		# Replace the old queue. As the list was iterated over in-order, the new
+		# queue should already be sorted.
+		self.eventQueue = newQueue
+
+		# Actually send the messages now. Doing this now instead of inside the
+		# loop above allows the callee to send another delayed message in
+		# response.
+		for event in pending:
+			self.notify(event)
 
 	def notify(self, event):
 		'''Send a message.'''
