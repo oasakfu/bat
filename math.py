@@ -131,7 +131,7 @@ def to_local(referential, point):
 	refP = referential.worldPosition
 	refOMat = referential.worldOrientation.copy()
 	refOMat.invert()
-	return (point - refP) * refOMat
+	return refOMat * (point - refP)
 
 def to_world(referential, point):
 	'''Transform 'point' into world space. 'point' must be specified in the
@@ -145,7 +145,7 @@ def to_world(referential, point):
 
 	refP = referential.worldPosition
 	refOMat = referential.worldOrientation.copy()
-	return (point * refOMat) + refP
+	return (refOMat * point) + refP
 
 def to_world_vec(referential, dir):
 	'''Transform direction vector 'dir' into world space. 'dir' must be
@@ -159,11 +159,11 @@ def to_world_vec(referential, dir):
 
 	refOMat = referential.worldOrientation.copy()
 	refOMat.invert()
-	return dir * refOMat
+	return refOMat * dir
 
 def to_local_vec(referential, dir):
 	refOMat = referential.worldOrientation.copy()
-	return dir * refOMat
+	return refOMat * dir
 
 def copy_transform(source, target):
 	target.worldPosition = source.worldPosition
