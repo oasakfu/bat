@@ -356,9 +356,12 @@ class GameObjectSet:
 	it. However, an object dying in the scene won't invalidate existing
 	iterators.'''
 
-	def __init__(self):
+	def __init__(self, iterable = None):
 		self.bag = set()
 		self.deadBag = set()
+		if iterable != None:
+			for ob in iterable:
+				self.add(ob)
 
 	def copy(self):
 		clone = GameObjectSet()
