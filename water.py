@@ -177,6 +177,8 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 				o22 = o2 - actor['OxygenDepletionRate']
 				o22 = max(0.0, o22)
 				actor['Oxygen'] = o22
+				if hasattr(actor, 'on_oxygen_set'):
+					actor.on_oxygen_set()
 				if int(o2 * 10) != int(o22 * 10):
 					self.spawn_bubble(actor)
 
@@ -189,6 +191,8 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 
 		else:
 			actor['Oxygen'] = 1.0
+			if hasattr(actor, 'on_oxygen_set'):
+				actor.on_oxygen_set()
 
 		if submergedFactor <= 0.1 and not self.isBubble(actor):
 			# Object has emerged.
@@ -275,6 +279,13 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 				actor['CurrentBuoyancy'] = actor['Buoyancy']
 				parent['Oxygen'] = actor['Oxygen']
 				actor['Oxygen'] = 1.0
+				# Order is important here: parent should be notified last.
+				# Control may be being passed to the parent, so its side-effects
+				# are more important.
+				if hasattr(actor, 'on_oxygen_set'):
+					actor.on_oxygen_set()
+				if hasattr(parent, 'on_oxygen_set'):
+					parent.on_oxygen_set()
 				self.floatingActors.add(parent)
 				print (parent['CurrentBuoyancy'])
 
@@ -284,6 +295,9 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 			submergedFactor = self.float(actor)
 
 			if actor['Oxygen'] <= 0.0 and hasattr(actor, 'drown'):
+				actor['Oxygen'] = 1.0
+				if hasattr(actor, 'on_oxygen_set'):
+					actor.on_oxygen_set()
 				actor.drown()
 				self.floatingActors.discard(actor)
 				actor['Floating'] = False
@@ -311,6 +325,8 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		if '_bxt.waterInit' in actor:
 			return
 		bxt.utils.set_default_prop(actor, 'Oxygen', 1.0)
+		if hasattr(actor, 'on_oxygen_set'):
+			actor.on_oxygen_set()
 		bxt.utils.set_default_prop(actor, 'OxygenDepletionRate', 0.005)
 		bxt.utils.set_default_prop(actor, 'Buoyancy', 0.1)
 		bxt.utils.set_default_prop(actor, 'CurrentBuoyancy', actor['Buoyancy'])
