@@ -228,6 +228,9 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		else:
 			actor['CurrentBuoyancy'] -= actor['SinkFactor']
 
+		if hasattr(actor, 'on_float'):
+			actor.on_float(self)
+
 		return submergedFactor
 
 	def spawn_ripples(self, actor, force = False):
