@@ -663,6 +663,10 @@ class Event:
 	def __str__(self):
 		return "Event(%s, %s)" % (str(self.message), str(self.body))
 
+	def send(self):
+		'''Shorthand for bxt.types.EventBus().notify(event).'''
+		EventBus().notify(self)
+
 class WeakEvent(Event):
 	'''An event whose body may be destroyed before it is read. Use this when
 	the body is a game object.'''
