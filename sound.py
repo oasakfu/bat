@@ -15,9 +15,11 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-import bxt
+import aud
 import mathutils
 from bge import logic
+
+import bxt
 
 MIN_VOLUME = 0.001
 
@@ -211,3 +213,9 @@ def modulate_by_angv(c):
 	o = c.owner
 	angV = mathutils.Vector(o.getAngularVelocity(False))
 	_modulate(angV.magnitude, c)
+
+def play_sample(filename):
+	dev = aud.device()
+	path = logic.expandPath(filename)
+	sample = aud.Factory(path)
+	dev.play(sample)
