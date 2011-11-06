@@ -38,6 +38,7 @@ try:
 except ImportError:
 	pass
 
+from . import anim
 from . import c
 from . import math
 from . import render
