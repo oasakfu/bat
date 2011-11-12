@@ -31,6 +31,8 @@ the end:
 
 import bge
 
+from . import types
+
 class TriggerEnd:
     '''Runs a callback when an animation finishes.'''
 
@@ -82,18 +84,11 @@ def _find_scene(ob):
             return sce
     raise ValueError("Can't find object in any active scene.")
 
+triggers = {}
+
 def add_trigger(ob, trigger):
     '''Adds an animation trigger. The trigger will be evaluated once per frame
     until it succeeds, or the object is destroyed.'''
-
-    sce = _find_scene(ob)
-    triggers = None
-    try:
-        triggers = sce['action_triggers']
-    except KeyError:
-        sce['action_triggers'] = triggers = {}
-        sce.pre_draw.append(_run_triggers)
-
     if not ob in triggers:
         triggers[ob] = []
     triggers[ob].append(trigger)
@@ -112,13 +107,8 @@ def add_trigger_lt(ob, layer, frame, callback):
     is reached if running backwards).'''
     add_trigger(ob, TriggerLT(layer, frame, callback))
 
-def _run_triggers():
-    '''Runs all triggers for the current scene. This is run as a drawing
-    callback of the scene.'''
-
-    # Traverse list of object triggers. 'action_triggers' should exist, because
-    # it is added to the scene before this callback ('_run_triggers') is.
-    triggers = bge.logic.getCurrentScene()['action_triggers']
+def run_triggers():
+    '''Runs all triggers for the current scene.'''
     for ob in list(triggers.keys()):
         if ob.invalid:
             # Object has been deleted.
