@@ -33,6 +33,8 @@ import bge
 
 from . import types
 
+DEBUG = False
+
 class TriggerEnd:
     '''Runs a callback when an animation finishes.'''
 
@@ -77,46 +79,55 @@ class TriggerLT:
         else:
             return False
 
-def _find_scene(ob):
-    '''Finds the scene that an object belongs to.'''
-    for sce in bge.logic.getSceneList():
-        if ob in sce.objects:
-            return sce
-    raise ValueError("Can't find object in any active scene.")
+class Animator(types.BX_GameObject, bge.types.KX_GameObject):
+    _prefix = ""
 
-triggers = {}
+    def __init__(self, old_owner):
+        self.triggers = {}
 
-def add_trigger(ob, trigger):
-    '''Adds an animation trigger. The trigger will be evaluated once per frame
-    until it succeeds, or the object is destroyed.'''
-    if not ob in triggers:
-        triggers[ob] = []
-    triggers[ob].append(trigger)
+    def add_trigger(self, ob, trigger):
+        '''Adds an animation trigger. The trigger will be evaluated once per
+        frame until it succeeds, or the object is destroyed.'''
+        if not ob in self.triggers:
+            self.triggers[ob] = []
+        self.triggers[ob].append(trigger)
+
+    @types.expose
+    def run_triggers(self):
+        '''Runs all triggers for the current scene.'''
+        for ob in list(self.triggers.keys()):
+            if ob.invalid:
+                # Object has been deleted.
+                if DEBUG:
+                    print("anim: Discarding dead object.")
+                del self.triggers[ob]
+                continue
+
+            # Traverse list of triggers.
+            obTriggers = self.triggers[ob]
+            for trigger in list(obTriggers):
+                if DEBUG:
+                    print("anim: Evaluating trigger")
+                if trigger.evaluate(ob):
+                    if DEBUG:
+                        print("success")
+                    obTriggers.remove(trigger)
+
+def get_animator():
+    '''Gets the animator of the current scene.'''
+    sce = bge.logic.getCurrentScene()
+    return sce.objects["BXT_Animator"]
 
 def add_trigger_end(ob, layer, callback):
     '''Adds a trigger that runs once at the end of the animation.'''
-    add_trigger(ob, TriggerEnd(layer, callback))
+    get_animator().add_trigger(ob, TriggerEnd(layer, callback))
 
 def add_trigger_gte(ob, layer, frame, callback):
     '''Adds a trigger that runs once when 'frame' is reached (or before 'frame'
     is reached if running backwards).'''
-    add_trigger(ob, TriggerGTE(layer, frame, callback))
+    get_animator().add_trigger(ob, TriggerGTE(layer, frame, callback))
 
 def add_trigger_lt(ob, layer, frame, callback):
     '''Adds a trigger that runs once before 'frame' is reached (or after 'frame'
     is reached if running backwards).'''
-    add_trigger(ob, TriggerLT(layer, frame, callback))
-
-def run_triggers():
-    '''Runs all triggers for the current scene.'''
-    for ob in list(triggers.keys()):
-        if ob.invalid:
-            # Object has been deleted.
-            del triggers[ob]
-            continue
-
-        # Traverse list of triggers.
-        obTriggers = triggers[ob]
-        for trigger in list(obTriggers):
-            if trigger.evaluate(ob):
-                obTriggers.remove(trigger)
+    get_animator().add_trigger(ob, TriggerLT(layer, frame, callback))

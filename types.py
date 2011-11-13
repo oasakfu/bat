@@ -579,6 +579,7 @@ class EventBus(metaclass=Singleton):
 		self.gamobListeners = GameObjectSet()
 		self.eventQueue = []
 		self.eventCache = {}
+		self.lastCaller = (None, 0)
 
 	def add_listener(self, listener):
 		if DEBUG:
@@ -604,10 +605,35 @@ class EventBus(metaclass=Singleton):
 		self.eventQueue.append((event, delay))
 		self.eventQueue.sort(key=queued_event_key)
 
+	def lock(self, ob):
+		'''Tests whether the queue has been run already by another object on
+		this frame. Returns True if the calling object has obtained a lock.'''
+		lastObId, lastI = self.lastCaller
+		acquired = False
+		if lastObId == None or id(ob) == lastObId:
+			acquired = True
+		else:
+			# If the state is the same as the last time the calling object tried
+			# to acquire a lock, then the old lock has expired.
+			try:
+				acquired = self.lastCaller == ob["_EventBusLock"]
+			except KeyError:
+				acquired = False
+
+		if acquired:
+			self.lastCaller = (id(ob), (lastI + 1) % 100)
+		ob["_EventBusLock"] = self.lastCaller
+		return acquired
+
 	@expose
-	def process_queue(self):
-		'''Send queued messages that are ready.'''
+	@bxt.utils.owner_cls
+	def process_queue(self, ob):
+		'''Send queued messages that are ready. It is assumed that several
+		objects may be calling this each frame; however, only one per frame will
+		succeed.'''
 		if len(self.eventQueue) == 0:
+			return
+		if not self.lock(ob):
 			return
 
 		# Decrement the frame counter for each queued message.
