@@ -595,7 +595,7 @@ class EventBus(metaclass=Singleton):
 		else:
 			self.listeners.discard(listener)
 
-	def enqueue(self, event, delay):
+	def _enqueue(self, event, delay):
 		'''Queue a message for sending after a delay.
 
 		@param event The event to send.
@@ -658,8 +658,18 @@ class EventBus(metaclass=Singleton):
 		for event in pending:
 			self.notify(event)
 
-	def notify(self, event):
-		'''Send a message.'''
+	def notify(self, event, delay=0):
+		'''Send a message.
+
+		@param event The event to send.
+		@param delay The time to wait, in frames.'''
+
+		if delay <= 0:
+			self._notify(event)
+		else:
+			self._enqueue(event, delay)
+
+	def _notify(self, event):
 		if DEBUG:
 			print('Sending', event)
 		for listener in self.listeners:
@@ -689,9 +699,9 @@ class Event:
 	def __str__(self):
 		return "Event(%s, %s)" % (str(self.message), str(self.body))
 
-	def send(self):
+	def send(self, delay=0):
 		'''Shorthand for bxt.types.EventBus().notify(event).'''
-		EventBus().notify(self)
+		EventBus().notify(self, delay)
 
 class WeakEvent(Event):
 	'''An event whose body may be destroyed before it is read. Use this when
