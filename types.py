@@ -672,9 +672,9 @@ class EventBus(metaclass=Singleton):
 	def _notify(self, event):
 		if DEBUG:
 			print('Sending', event)
-		for listener in self.listeners:
+		for listener in self.listeners.copy():
 			listener.on_event(event)
-		for listener in self.gamobListeners:
+		for listener in self.gamobListeners.copy():
 			listener.on_event(event)
 		self.eventCache[event.message] = event
 
