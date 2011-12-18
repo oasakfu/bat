@@ -141,7 +141,7 @@ def spray_particle(c):
 	Instance one particle, and decrement the particle counter. The particle will
 	move along the z-axis of the emitter. The emitter will then be repositioned.
 
-	The intention is that one particle will be emitten on each frame. This
+	The intention is that one particle will be emitted on each frame. This
 	should be fast enough for a spray effect. Staggering the emission reduces
 	the liklihood that the frame rate will suffer.
 
