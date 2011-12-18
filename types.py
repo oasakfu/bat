@@ -528,6 +528,9 @@ class WeakPriorityQueue:
 	def top(self):
 		return self[-1]
 
+	def __str__(self):
+		return str(self.queue)
+
 class GameObjectPriorityQueue:
 	def __init__(self):
 		self.q = WeakPriorityQueue()
@@ -539,12 +542,10 @@ class GameObjectPriorityQueue:
 		return item in self.q
 
 	def push(self, item, priority):
-		print('push', item)
 		self.q.push(item, priority)
 		self._clean_refs()
 
 	def discard(self, item):
-		print('discard', item)
 		self.q.discard(item)
 		self._clean_refs()
 
@@ -566,6 +567,20 @@ class GameObjectPriorityQueue:
 		for item in self.deadBag:
 			self.q.discard(item)
 		self.deadBag.clear()
+
+	def __str__(self):
+		string = "["
+		first = True
+		for ob in self.q:
+			if ob.invalid:
+				continue
+			if not first:
+				string += ", "
+			else:
+				first = False
+			string += ob.name
+		string += "]"
+		return string
 
 #
 # Events

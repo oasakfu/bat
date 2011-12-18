@@ -22,6 +22,30 @@ from functools import wraps
 from bge import logic, types
 import weakref
 
+class Logger:
+	'''A logger that write to stdout.'''
+	def __call__(self, *args, **kwargs):
+		print(*args, **kwargs)
+	def write(self, string):
+		sys.stdout.write(string)
+	def flush(self):
+		sys.stdout.flush()
+
+class NullLogger:
+	'''A logger that produces no output.'''
+	def __call__(self, *args, **kwargs):
+		pass
+	def write(self, string):
+		pass
+	def flush(self):
+		pass
+
+def get_logger(visible):
+	if visible:
+		return Logger()
+	else:
+		return NullLogger()
+
 DEBUG = False
 
 def _debug_leaking_objects():
