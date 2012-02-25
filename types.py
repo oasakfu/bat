@@ -55,6 +55,7 @@ if PROFILE_BASIC:
 	print_stats = _print_stats
 elif PROFILE_STOCHASTIC:
 	import bxt.statprof
+	bxt.statprof.reset(1000)
 	bxt.statprof.start()
 	print_stats = _print_stats2
 class profile:

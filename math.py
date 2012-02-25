@@ -128,10 +128,7 @@ def to_local(referential, point):
 	point:       The point, in world space, to transform. (mathutils.Vector)
 	'''
 
-	refP = referential.worldPosition
-	refOMat = referential.worldOrientation.copy()
-	refOMat.invert()
-	return refOMat * (point - refP)
+	return referential.worldTransform.inverted() * point
 
 def to_world(referential, point):
 	'''Transform 'point' into world space. 'point' must be specified in the
@@ -143,11 +140,9 @@ def to_world(referential, point):
 	point:       The point, in local space, to transform. (mathutils.Vector)
 	'''
 
-	refP = referential.worldPosition
-	refOMat = referential.worldOrientation.copy()
-	return (refOMat * point) + refP
+	return referential.worldTransform * point
 
-def to_world_vec(referential, dir):
+def to_world_vec(referential, direction):
 	'''Transform direction vector 'dir' into world space. 'dir' must be
 	specified in the coordinate space of 'referential'.
 
@@ -157,13 +152,10 @@ def to_world_vec(referential, dir):
 	point:       The point, in local space, to transform. (mathutils.Vector)
 	'''
 
-	refOMat = referential.worldOrientation.copy()
-	refOMat.invert()
-	return refOMat * dir
+	return referential.worldOrientation.inverted() * direction
 
-def to_local_vec(referential, dir):
-	refOMat = referential.worldOrientation.copy()
-	return refOMat * dir
+def to_local_vec(referential, direction):
+	return referential.worldOrientation * direction
 
 def copy_transform(source, target):
 	target.worldPosition = source.worldPosition
@@ -190,7 +182,7 @@ def slow_copy_rot(o, goal, factor):
 	goalOrn = goal.worldOrientation.to_quaternion()
 	orn = o.worldOrientation.to_quaternion()
 	orn = orn.slerp(goalOrn, factor)
-	orn = orn.to_matrix()
+	#orn = orn.to_matrix()
 
 	o.localOrientation = orn
 
@@ -328,7 +320,11 @@ class ArcRay(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		self.set_default_prop('angle', ArcRay.ANGLE)
 		self.set_default_prop('resolution', ArcRay.RESOLUTION)
 		self.set_default_prop('radius', ArcRay.RADIUS)
-		self.set_default_prop('prop', '')
+
+		try:
+			self.prop = self['prop']
+		except KeyError:
+			self.prop = ""
 
 		self._createPoints()
 		self.lastHitPoint = ORIGIN.copy()
@@ -355,29 +351,36 @@ class ArcRay(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 			point.x = math.sin(angle) * self['radius']
 			point.z = math.cos(angle) * self['radius']
 			self.path.append(point)
+		try:
+			self.raylen = (self.path[1] - self.path[0]).magnitude
+		except IndexError:
+			self.raylen = 0.0
 
 	def getHitPosition(self):
 		"""Return the hit point of the first child ray that hits.
 		If none hit, the default value of the first ray is returned."""
 		ob = None
 		norm = None
-		for A, B in zip(self.path, self.path[1:]):
-			A = to_world(self, A)
-			B = to_world(self, B)
-			ob, p, norm = ray_cast_p2p(B, A, prop=self['prop'])
-			if ob:
-				self.lastHitPoint = to_local(self, p)
-				self.lastHitNorm = to_local_vec(self, norm)
-				if DEBUG:
-					bge.render.drawLine(A, p, bxt.render.ORANGE.xyz)
-				break
-			else:
-				if DEBUG:
-					bge.render.drawLine(A, B, bxt.render.YELLOW.xyz)
 
-		wp = to_world(self, self.lastHitPoint)
-		wn = to_world_vec(self, self.lastHitNorm)
-		if DEBUG:
-			self.marker.worldPosition = wp
-			print(self, "hit", ob)
+		# Save a bit of time by reusing matrices (instead of using to_world etc
+		# functions.
+		refMat = self.worldTransform
+		refOrn = refMat.to_quaternion()
+		refMatInv = refMat.inverted()
+		refOrnInv = refMatInv.to_quaternion()
+
+		worldPath = []
+		for point in self.path:
+			worldPath.append(refMat * point)
+
+		for A, B in zip(worldPath, worldPath[1:]):
+			ob, p, norm = self.rayCast(B, A, self.raylen, self.prop, True, True,
+					False)
+			if ob:
+				self.lastHitPoint = refMatInv * p
+				self.lastHitNorm = refOrnInv * norm
+				break
+
+		wp = refMat * self.lastHitPoint
+		wn = refOrn * self.lastHitNorm
 		return ob, wp, wn
