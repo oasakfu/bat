@@ -57,6 +57,7 @@ class ForceField(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 			effect = 0.0
 		return self['FFMagnitude'] * effect
 
+	@bxt.types.expose
 	@bxt.utils.controller_cls
 	def touched(self, c):
 		actors = set()
@@ -90,7 +91,7 @@ class ForceField(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		vec = bxt.math.to_world_vec(self, vec)
 
 		if DEBUG:
-			self.forceMarker.worldPosition = actor.worldPosition
+			self.forceMarker.worldPosition = bxt.math.to_world(self, pos)
 			if vec.magnitude > bxt.math.EPSILON:
 				self.forceMarker.alignAxisToVect(vec, 2)
 				self.forceMarker.color = bxt.render.YELLOW

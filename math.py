@@ -142,6 +142,9 @@ def to_world(referential, point):
 
 	return referential.worldTransform * point
 
+def to_local_vec(referential, direction):
+	return referential.worldOrientation.inverted() * direction
+
 def to_world_vec(referential, direction):
 	'''Transform direction vector 'dir' into world space. 'dir' must be
 	specified in the coordinate space of 'referential'.
@@ -152,9 +155,6 @@ def to_world_vec(referential, direction):
 	point:       The point, in local space, to transform. (mathutils.Vector)
 	'''
 
-	return referential.worldOrientation.inverted() * direction
-
-def to_local_vec(referential, direction):
 	return referential.worldOrientation * direction
 
 def copy_transform(source, target):
