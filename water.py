@@ -22,7 +22,7 @@ from bge import logic
 import mathutils
 
 import bxt.types
-import bxt.math
+import bxt.bmath
 import bxt.effectors
 
 # The angle to rotate successive ripples by (giving them a random appearance),
@@ -97,7 +97,7 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		vec = vec * (actor['FloatRadius'] + BUBBLE_BIAS)
 		pos = actor.worldPosition.copy()
 		pos -= vec
-		pos += bxt.math.getRandomVector() * 0.05
+		pos += bxt.bmath.getRandomVector() * 0.05
 
 		#
 		# Create object.
@@ -144,7 +144,7 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 
 		depth = hitPoint.z - origin.z
 		submergedFactor = depth / (actor['FloatRadius'] * 2.0)
-		submergedFactor = bxt.math.clamp(0.0, 1.0, submergedFactor)
+		submergedFactor = bxt.bmath.clamp(0.0, 1.0, submergedFactor)
 
 		if not inside:
 			# The object is submerged, but its base is outside the water object.
@@ -156,7 +156,7 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		return submergedFactor
 
 	def apply_damping(self, linV, submergedFactor):
-		return bxt.math.lerp(linV, bxt.math.ZEROVEC, self['DampingFactor'] * submergedFactor)
+		return bxt.bmath.lerp(linV, bxt.bmath.ZEROVEC, self['DampingFactor'] * submergedFactor)
 
 	def float(self, actor):
 		'''Adjust the velocity of an object to make it float on the water.
@@ -204,7 +204,7 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		# water (up). Acceleration increases linearly with the depth, until the
 		# object is fully submerged.
 		#
-		submergedFactor = bxt.math.clamp(0.0, 1.0, submergedFactor)
+		submergedFactor = bxt.bmath.clamp(0.0, 1.0, submergedFactor)
 		accel = submergedFactor * actor['CurrentBuoyancy']
 		linV = actor.getLinearVelocity(False)
 		linV.z = linV.z + accel
@@ -217,7 +217,7 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 
 		if DEBUG:
 			self.floatMarker.worldPosition = actor.worldPosition
-			self.floatMarker.localScale = bxt.math.ONEVEC * accel
+			self.floatMarker.localScale = bxt.bmath.ONEVEC * accel
 
 		#
 		# Update buoyancy (take on water).
@@ -375,7 +375,7 @@ class ShapedWater(Water):
 		Water.__init__(self, owner)
 
 	def apply_damping(self, linV, submergedFactor):
-		return bxt.math.lerp(linV, bxt.math.ZEROVEC, self['DampingFactor'])
+		return bxt.bmath.lerp(linV, bxt.bmath.ZEROVEC, self['DampingFactor'])
 
 	def spawn_bubble(self, actor):
 		'''No bubbles in shaped water.'''

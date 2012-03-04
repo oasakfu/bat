@@ -17,7 +17,7 @@
 
 from bge import logic, render
 
-import bxt.math
+import bxt.bmath
 
 @bxt.utils.controller
 def slow_copy_rot(c):
@@ -28,7 +28,7 @@ def slow_copy_rot(c):
 
 	o = c.owner
 	goal = c.sensors['sGoal'].owner
-	bxt.math.slow_copy_rot(o, goal, o['RotFac'])
+	bxt.bmath.slow_copy_rot(o, goal, o['RotFac'])
 
 @bxt.utils.controller
 def slow_copy_loc(c):
@@ -39,13 +39,13 @@ def slow_copy_loc(c):
 
 	o = c.owner
 	goal = c.sensors['sGoal'].owner
-	bxt.math.slow_copy_loc(o, goal, o['LocFac'])
+	bxt.bmath.slow_copy_loc(o, goal, o['LocFac'])
 
 @bxt.utils.all_sensors_positive
 @bxt.utils.controller
 def copy_trans(c):
 	'''Copy the transform from a linked sensor's object to this object.'''
-	bxt.math.copy_transform(c.sensors[0].owner, c.owner)
+	bxt.bmath.copy_transform(c.sensors[0].owner, c.owner)
 
 @bxt.utils.owner
 def ray_follow(o):
@@ -57,7 +57,7 @@ def ray_follow(o):
 	p = o.parent
 
 	origin = p.worldPosition
-	direction = p.getAxisVect(bxt.math.ZAXIS)
+	direction = p.getAxisVect(bxt.bmath.ZAXIS)
 	through = origin + direction
 
 	hitOb, hitPoint, hitNorm = p.rayCast(
@@ -83,7 +83,7 @@ def ray_follow(o):
 	if targetDist < o['Dist']:
 		o['Dist'] = targetDist
 	else:
-		o['Dist'] = bxt.math.lerp(o['Dist'], targetDist, o['FollowFac'])
+		o['Dist'] = bxt.bmath.lerp(o['Dist'], targetDist, o['FollowFac'])
 
 	o.worldPosition = origin + (direction * o['Dist'])
 
@@ -98,7 +98,7 @@ def orbit_follow(o):
 		o['LastPos'] = o.worldPosition
 		return
 
-	zlocal = p.getAxisVect(bxt.math.ZAXIS)
+	zlocal = p.getAxisVect(bxt.bmath.ZAXIS)
 	zcomponent = vectTo.project(zlocal)
 	targetDirection = vectTo - zcomponent
 	targetDirection.normalize()
@@ -127,7 +127,7 @@ def orbit_follow(o):
 	if targetDist < o['Dist']:
 		o['Dist'] = targetDist
 	else:
-		o['Dist'] = bxt.math.lerp(o['Dist'], targetDist, o['FollowFac'])
+		o['Dist'] = bxt.bmath.lerp(o['Dist'], targetDist, o['FollowFac'])
 
 	o['LastPos'] = origin + (targetDirection * o['Dist'])
 	o.worldPosition = o['LastPos']

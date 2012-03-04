@@ -86,7 +86,7 @@ def play_with_random_pitch(c):
 	#
 	# Set the pitch and activate!
 	#
-	a.pitch = bxt.math.lerp(o['PitchMin'], o['PitchMax'], logic.getRandomFloat())
+	a.pitch = bxt.bmath.lerp(o['PitchMin'], o['PitchMax'], logic.getRandomFloat())
 	c.activate(a)
 
 @bxt.utils.controller
@@ -133,7 +133,7 @@ def _fade(c, maxVolume):
 			targetVolume = maxVolume
 			break
 
-	a.volume = bxt.math.lerp(a.volume, targetVolume, o['SoundFadeFac'])
+	a.volume = bxt.bmath.lerp(a.volume, targetVolume, o['SoundFadeFac'])
 	if a.volume > MIN_VOLUME:
 		c.activate(a)
 	else:
@@ -157,10 +157,10 @@ def _modulate(speed, c):
 
 	factor = 0.0
 	if speed > 0.0:
-		factor = bxt.math.approach_one(speed, o['SoundModScale'])
+		factor = bxt.bmath.approach_one(speed, o['SoundModScale'])
 
 	a = c.actuators[0]
-	a.pitch = bxt.math.lerp(o['PitchMin'], o['PitchMax'], factor)
+	a.pitch = bxt.bmath.lerp(o['PitchMin'], o['PitchMax'], factor)
 
 	_fade(c, factor)
 

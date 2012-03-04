@@ -74,11 +74,11 @@ class ForceField(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		'''Called when an object is inside the force field.'''
 		pos = mathutils.Vector(actor.worldPosition)
 
-		if (bxt.math.manhattan_dist(pos, self.worldPosition) >
+		if (bxt.bmath.manhattan_dist(pos, self.worldPosition) >
 			self['FFDist2']):
 			return
 
-		pos = bxt.math.to_local(self, pos)
+		pos = bxt.bmath.to_local(self, pos)
 		if 'FFZCut' in self and self['FFZCut'] and (pos.z > 0.0):
 			return
 
@@ -88,11 +88,11 @@ class ForceField(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 			vec.normalize()
 		magnitude = self.get_magnitude(dist)
 		vec *= magnitude * factor
-		vec = bxt.math.to_world_vec(self, vec)
+		vec = bxt.bmath.to_world_vec(self, vec)
 
 		if DEBUG:
-			self.forceMarker.worldPosition = bxt.math.to_world(self, pos)
-			if vec.magnitude > bxt.math.EPSILON:
+			self.forceMarker.worldPosition = bxt.bmath.to_world(self, pos)
+			if vec.magnitude > bxt.bmath.EPSILON:
 				self.forceMarker.alignAxisToVect(vec, 2)
 				self.forceMarker.color = bxt.render.YELLOW
 			else:
@@ -112,7 +112,7 @@ class Linear(ForceField):
 		ForceField.__init__(self, old_owner)
 
 	def get_force_direction(self, posLocal):
-		return bxt.math.to_local_vec(self, self.getAxisVect(bxt.math.YAXIS))
+		return bxt.bmath.to_local_vec(self, self.getAxisVect(bxt.bmath.YAXIS))
 
 	def modulate(self, distance, limit):
 		'''
