@@ -595,6 +595,43 @@ class GameObjectPriorityQueue:
 # Events
 #
 
+class Timekeeper(metaclass=Singleton):
+	def __init__(self):
+		self.current_frame = 0
+		self.locked = False
+		self.ensure_installed()
+
+	def get_frame_num(self):
+		# Make sure the timekeeper is running for every scene that wants to use
+		# it.
+		self.ensure_installed()
+		return self.current_frame
+
+	@staticmethod
+	def frame_count_pre():
+		tk = Timekeeper()
+		tk.locked = False
+
+	@staticmethod
+	def frame_count_post():
+		'''
+		Lock, to prevent two scene callbacks from updating the counter.
+		'''
+		tk = Timekeeper()
+		if tk.locked:
+			return
+		tk.locked = True
+		tk.current_frame += 1
+
+	def ensure_installed(self):
+		sce = bge.logic.getCurrentScene()
+		if Timekeeper.frame_count_pre in sce.pre_draw:
+			return
+
+		#print("Installing timekeeper")
+		sce.pre_draw.append(Timekeeper.frame_count_pre)
+		sce.post_draw.append(Timekeeper.frame_count_post)
+
 class EventBus(metaclass=Singleton):
 	'''Delivers messages to listeners.'''
 
@@ -604,6 +641,7 @@ class EventBus(metaclass=Singleton):
 		self.eventQueue = []
 		self.eventCache = {}
 		self.lastCaller = (None, 0)
+		self.last_frame_num = Timekeeper().get_frame_num()
 
 	def add_listener(self, listener):
 		if DEBUG:
@@ -629,26 +667,6 @@ class EventBus(metaclass=Singleton):
 		self.eventQueue.append((event, delay))
 		self.eventQueue.sort(key=queued_event_key)
 
-	def lock(self, ob):
-		'''Tests whether the queue has been run already by another object on
-		this frame. Returns True if the calling object has obtained a lock.'''
-		lastObId, lastI = self.lastCaller
-		acquired = False
-		if lastObId == None or id(ob) == lastObId:
-			acquired = True
-		else:
-			# If the state is the same as the last time the calling object tried
-			# to acquire a lock, then the old lock has expired.
-			try:
-				acquired = self.lastCaller == ob["_EventBusLock"]
-			except KeyError:
-				acquired = False
-
-		if acquired:
-			self.lastCaller = (id(ob), (lastI + 1) % 100)
-		ob["_EventBusLock"] = self.lastCaller
-		return acquired
-
 	@expose
 	@bxt.utils.owner_cls
 	def process_queue(self, ob):
@@ -657,8 +675,12 @@ class EventBus(metaclass=Singleton):
 		succeed.'''
 		if len(self.eventQueue) == 0:
 			return
-		if not self.lock(ob):
+
+		# Acquire lock for this frame.
+		frame_num = Timekeeper().get_frame_num()
+		if frame_num == self.last_frame_num:
 			return
+		self.last_frame_num = frame_num
 
 		# Decrement the frame counter for each queued message.
 		newQueue = []
@@ -666,10 +688,10 @@ class EventBus(metaclass=Singleton):
 		for event, delay in self.eventQueue:
 			delay -= 1
 			if delay <= 0:
-				print("Dispatching", event.message)
+				#print("Dispatching", event.message)
 				pending.append(event)
 			else:
-				print("Delaying", event.message, delay)
+				#print("Delaying", event.message, delay)
 				newQueue.append((event, delay))
 
 		# Replace the old queue. As the list was iterated over in-order, the new
@@ -683,10 +705,12 @@ class EventBus(metaclass=Singleton):
 			self.notify(event)
 
 	def notify(self, event, delay=0):
-		'''Send a message.
+		'''
+		Send a message.
 
 		@param event The event to send.
-		@param delay The time to wait, in frames.'''
+		@param delay The time to wait, in rendered frames (not logic ticks).
+		'''
 
 		if delay <= 0:
 			self._notify(event)

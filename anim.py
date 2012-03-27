@@ -35,44 +35,68 @@ from . import types
 
 DEBUG = False
 
-class TriggerEnd:
+class Trigger:
+    def __init__(self):
+        self.current_frame = types.Timekeeper().get_frame_num()
+
+    def is_next_frame(self):
+        '''
+        Only consider animation to be complete if the next frame has actually
+        been drawn.
+        '''
+        frame_num = types.Timekeeper().get_frame_num()
+        if self.current_frame == frame_num:
+            return False
+        self.current_frame = frame_num
+        return True
+
+class TriggerEnd(Trigger):
     '''Runs a callback when an animation finishes.'''
 
     def __init__(self, layer, callback):
+        Trigger.__init__(self)
         self.layer = layer
         self.callback = callback
 
     def evaluate(self, ob):
+        if not self.is_next_frame():
+            return False
         if not ob.isPlayingAction(self.layer):
             self.callback()
             return True
         else:
             return False
 
-class TriggerGTE:
+class TriggerGTE(Trigger):
     '''Runs a callback on or after an animation frame.'''
 
     def __init__(self, layer, frame, callback):
+        Trigger.__init__(self)
         self.layer = layer
         self.frame = frame
         self.callback = callback
 
     def evaluate(self, ob):
+        if not self.is_next_frame():
+            return False
         if ob.getActionFrame(self.layer) >= self.frame:
             self.callback()
             return True
         else:
             return False
 
-class TriggerLT:
+class TriggerLT(Trigger):
     '''Runs a callback before an animation frame.'''
 
     def __init__(self, layer, frame, callback):
+        Trigger.__init__(self)
         self.layer = layer
         self.frame = frame
         self.callback = callback
 
     def evaluate(self, ob):
+        if not self.is_next_frame():
+            return False
         if ob.getActionFrame(self.layer) < self.frame:
             self.callback()
             return True
