@@ -29,6 +29,7 @@ MIN_VOLUME = 0.001
 #
 _SoundActuatorIndices = {}
 
+@bxt.utils.all_sensors_positive
 @bxt.utils.controller
 def play_with_random_pitch(c):
 	'''
@@ -50,9 +51,6 @@ def play_with_random_pitch(c):
 	          different numbers of actuators, the additional actuators are not
 	          guaranteed to play.
 	'''
-	s = c.sensors[0]
-	if not s.triggered or not s.positive:
-		return
 	o = c.owner
 
 	try:
