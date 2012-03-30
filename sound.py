@@ -112,6 +112,17 @@ def _fade(c, maxVolume):
 	a = c.actuators[0]
 	o = a.owner
 
+	# Wait a few frames before allowing sound to be played. This is a filthy
+	# hack to prevent objects from being noisy when they spawn - i.e. when they
+	# tend to have a bit of initial velocity.
+	try:
+		if o['SoundWait'] > 0:
+			o['SoundWait'] -= 1
+			return
+	except:
+		o['SoundWait'] = 20
+		return
+
 	try:
 		o['VolumeMult']
 	except KeyError:
