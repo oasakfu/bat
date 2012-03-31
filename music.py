@@ -15,6 +15,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+import itertools
+
 import aud
 import bge
 
@@ -29,7 +31,6 @@ old_handles = []
 
 def play(*filepaths, volume=1.0, loop=True):
 	'''Start playing a new track.'''
-	global current_handle
 
 	# Construct a factory for each file.
 	segments = []
@@ -42,10 +43,58 @@ def play(*filepaths, volume=1.0, loop=True):
 		segments[-1] = segments[-1].loop(-1)
 
 	# Join the segments together.
-	track = segments[0]
-	for seg in segments[1:]:
-		track = track.join(seg)
+	track = _concatenate_factories(segments)
 
+	try:
+		_play(track, volume)
+	except aud.error as e:
+		print("Error playing", filepaths)
+		print(e)
+
+def play_permutation(*filepaths, volume=1.0, loop=True):
+	'''
+	Play a set of tracks in various orders - e.g. 3 files each 20s long will
+	play for
+
+		3! * (3 * 20) = 6 * 60 = 360s
+
+	before repeating.
+	'''
+	# Construct a factory for each file.
+	segments = []
+	for filepath in filepaths:
+		path = bge.logic.expandPath(filepath)
+		segments.append(aud.Factory(path))
+
+	# Note that itertools.permutations() returns a 2D array of permutations, so
+	# we need to join the inner sequences first, then join them all together at
+	# the end.
+	perms = []
+	for p in itertools.permutations(segments):
+		perms.append(_concatenate_factories(p))
+	track = _concatenate_factories(perms)
+
+	# Make just the last segment loop.
+	if loop:
+		track = track.loop(-1)
+
+	try:
+		_play(track, volume)
+	except aud.error as e:
+		print("Error playing", filepaths)
+		print(e)
+
+def _concatenate_factories(factories):
+	combined = None
+	for factory in factories:
+		if combined is None:
+			combined = factory
+		else:
+			combined = combined.join(factory)
+	return combined
+
+def _play(track, volume):
+	global current_handle
 	# Set volume globally for whole track.
 	if volume != 1.0:
 		track = track.volume(volume)
@@ -53,13 +102,10 @@ def play(*filepaths, volume=1.0, loop=True):
 	# Retire old track.
 	stop()
 	# Play new track.
-	try:
-		dev = aud.device()
-		current_handle = dev.play(track)
-		current_handle.volume = 0.0
-	except aud.error as e:
-		print("Error playing", filepath)
-		print(e)
+	dev = aud.device()
+	current_handle = dev.play(track)
+	current_handle.volume = 0.0
+
 
 def stop():
 	'''Fade out the current track.'''
