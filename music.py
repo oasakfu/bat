@@ -41,9 +41,13 @@ def play(filepath, volume=1.0, loop=True):
 
 	# Retire old track.
 	stop()
-	# Play new track. 
-	current_handle = dev.play(track)
-	current_handle.volume = 0.0
+	# Play new track.
+	try:
+		current_handle = dev.play(track)
+		current_handle.volume = 0.0
+	except aud.error as e:
+		print("Error playing", filepath)
+		print(e)
 
 def stop():
 	'''Fade out the current track.'''
