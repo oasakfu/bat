@@ -27,22 +27,34 @@ VOLUME_INCREMENT = 0.005
 current_handle = None
 old_handles = []
 
-def play(filepath, volume=1.0, loop=True):
+def play(*filepaths, volume=1.0, loop=True):
 	'''Start playing a new track.'''
 	global current_handle
 
-	dev = aud.device()
-	path = bge.logic.expandPath(filepath)
-	track = aud.Factory(path)
+	# Construct a factory for each file.
+	segments = []
+	for filepath in filepaths:
+		path = bge.logic.expandPath(filepath)
+		segments.append(aud.Factory(path))
+
+	# Make just the last segment loop.
+	if loop:
+		segments[-1] = segments[-1].loop(-1)
+
+	# Join the segments together.
+	track = segments[0]
+	for seg in segments[1:]:
+		track = track.join(seg)
+
+	# Set volume globally for whole track.
 	if volume != 1.0:
 		track = track.volume(volume)
-	if loop:
-		track = track.loop(-1)
 
 	# Retire old track.
 	stop()
 	# Play new track.
 	try:
+		dev = aud.device()
 		current_handle = dev.play(track)
 		current_handle.volume = 0.0
 	except aud.error as e:
@@ -51,9 +63,11 @@ def play(filepath, volume=1.0, loop=True):
 
 def stop():
 	'''Fade out the current track.'''
+	global current_handle
 	# This will cause the old track to fade out in update().
 	if current_handle != None:
 		old_handles.append(current_handle)
+		current_handle = None
 
 def update():
 	'''Fade in current track, and fade out old tracks.'''
