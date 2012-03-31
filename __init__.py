@@ -43,6 +43,7 @@ from . import c
 from . import bmath
 from . import render
 from . import sound
+from . import music
 from . import types
 from . import utils
 from . import effectors
