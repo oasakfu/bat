@@ -209,3 +209,11 @@ def has_state(ob, state):
 	'''Test whether the object is in the specified state.'''
 	stateBitmask = 1 << (state - 1)
 	return (ob.state & stateBitmask) != 0
+
+def get_scene(ob):
+	'''Get the scene that this object exists in. Sometimes this is preferred
+	over bge.logic.getCurrentScene, e.g. if this object is responding to an
+	event sent from another scene.'''
+	for sce in logic.getSceneList():
+		if ob in sce.objects:
+			return sce
