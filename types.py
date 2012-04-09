@@ -359,7 +359,9 @@ def weakprop(name):
 class SafeList:
 	'''
 	A list that only stores references to valid objects. An object that has the
-	'invalid' attribute will be ignored if ob.invalid is False.
+	'invalid' attribute will be ignored if ob.invalid is False. This has
+	implications for the indices of the list: indices may change from one frame
+	to the next, but they should remain consistent during a frame.
 	'''
 
 	def __init__(self, iterable = None):
@@ -442,6 +444,12 @@ class SafeList:
 	def __delitem__(self, index):
 		self._expunge()
 		return self._list.__delitem__(index)
+
+	def insert(self, index, item):
+		self._expunge()
+		if hasattr(item, 'invalid') and item.invalid:
+			return
+		self._list.insert(index, item)
 
 	def _expunge(self):
 		new_list = []
