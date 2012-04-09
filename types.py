@@ -385,7 +385,8 @@ class SafeList:
 			while True:
 				item = next(i)
 				if hasattr(item, 'invalid') and item.invalid:
-					yield item
+					continue
+				yield item
 		return _iterator()
 
 	def __len__(self):
@@ -416,7 +417,7 @@ class SafeList:
 	def remove(self, item):
 		if hasattr(item, 'invalid') and item.invalid:
 			raise ValueError("Item has expired.")
-		return self._list.remove(self, item)
+		return self._list.remove(item)
 
 	def extend(self, iterable):
 		for item in iterable:
@@ -463,6 +464,9 @@ class SafeList:
 				self._on_automatic_removal(item)
 			new_list.append(item)
 		self._list = new_list
+
+	def __str__(self):
+		return str(list(self))
 
 
 class SafeSet:
