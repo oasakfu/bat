@@ -355,7 +355,104 @@ def weakprop(name):
 
 	return createweakprop(hiddenName)
 
-class GameObjectSet:
+
+class SafeList:
+	'''
+	A list that only stores references to valid objects. An object that has the
+	'invalid' attribute will be ignored if ob.invalid is False.
+	'''
+
+	def __init__(self, iterable = None):
+		self._list = []
+		if iterable is not None:
+			self.extend(iterable)
+
+	def __contains__(self, item):
+		if hasattr(item, 'invalid') and item.invalid:
+			return False
+		return self._list.__contains__(item)
+
+	def __iter__(self):
+		def _iterator():
+			i = self._list.__iter__()
+			while True:
+				item = next(i)
+				if hasattr(item, 'invalid') and item.invalid:
+					yield item
+		return _iterator()
+
+	def __len__(self):
+		n = 0
+		for item in self._list:
+			if hasattr(item, 'invalid') and item.invalid:
+				continue
+			n += 1
+		return n
+
+	def append(self, item):
+		self.expunge()
+		if hasattr(item, 'invalid') and item.invalid:
+			return
+		return self._list.append(item)
+
+	def index(self, item):
+		i = 0
+		for item2 in self._list:
+			if hasattr(item2, 'invalid') and item2.invalid:
+				continue
+			if item2 is item:
+				return i
+			else:
+				i += 1
+		raise ValueError("Item is not in list")
+
+	def remove(self, item):
+		if hasattr(item, 'invalid') and item.invalid:
+			raise ValueError("Item has expired.")
+		return self._list.remove(self, item)
+
+	def extend(self, iterable):
+		for item in iterable:
+			self.append(item)
+
+	def count(self, item):
+		if hasattr(item, 'invalid') and item.invalid:
+			return 0
+		return self._list.count(item)
+
+	def __getitem__(self, index):
+		i = 0
+		for item in self._list:
+			if hasattr(item, 'invalid') and item.invalid:
+				continue
+			if i == index:
+				return item
+			else:
+				i += 1
+		raise IndexError("list index out of range")
+
+	def __setitem__(self, index, item):
+		self.expunge()
+		# After expunging, the all items in the internal list will have the
+		# right length - so it's OK to just call the wrapped method.
+		if hasattr(item, 'invalid') and item.invalid:
+			return item
+		return self._list.__setitem__(index, item)
+
+	def __delitem__(self, index):
+		self.expunge()
+		return self._list.__delitem__(index)
+
+	def expunge(self):
+		new_list = []
+		for item in self._list:
+			if hasattr(item, 'invalid') and item.invalid:
+				self._on_automatic_removal(item)
+			new_list.append(item)
+		self._list = new_list
+
+
+class SafeSet:
 	'''A set for PyObjectPlus objects. This container ensures that its contents
 	are valid (living) game objects.
 
@@ -371,14 +468,14 @@ class GameObjectSet:
 				self.add(ob)
 
 	def copy(self):
-		clone = GameObjectSet()
+		clone = SafeSet()
 		clone.bag = self.bag.copy()
 		clone.deadBag = self.deadBag.copy()
-		clone._clean_refs()
+		clone._expunge()
 		return clone
 
 	def __contains__(self, item):
-		if item.invalid:
+		if hasattr(item, 'invalid') and item.invalid:
 			if item in self.bag:
 				self._flag_removal(item)
 			return False
@@ -387,7 +484,7 @@ class GameObjectSet:
 
 	def __iter__(self):
 		for item in self.bag:
-			if item.invalid:
+			if hasattr(item, 'invalid') and item.invalid:
 				self._flag_removal(item)
 			else:
 				yield item
@@ -396,36 +493,37 @@ class GameObjectSet:
 		# Unfortunately the only way to be sure is to check each object!
 		count = 0
 		for item in self.bag:
-			if item.invalid:
+			if hasattr(item, 'invalid') and item.invalid:
 				self._flag_removal(item)
 			else:
 				count += 1
 		return count
 
 	def add(self, item):
-		self._clean_refs()
-		if not item.invalid:
-			self.bag.add(item)
+		self._expunge()
+		if hasattr(item, 'invalid') and item.invalid:
+			return
+		self.bag.add(item)
 
 	def discard(self, item):
 		self.bag.discard(item)
-		self._clean_refs()
+		self._expunge()
 
 	def remove(self, item):
 		self.bag.remove(item)
-		self._clean_refs()
+		self._expunge()
 
 	def update(self, iterable):
 		self.bag.update(iterable)
-		self._clean_refs()
+		self._expunge()
 
 	def difference_update(self, iterable):
 		self.bag.difference_update(iterable)
-		self._clean_refs()
+		self._expunge()
 
 	def intersection_update(self, iterable):
 		self.bag.intersection_update(iterable)
-		self._clean_refs()
+		self._expunge()
 
 	def clear(self):
 		self.bag.clear()
@@ -436,7 +534,7 @@ class GameObjectSet:
 		next explicit mutation (add() or discard()).'''
 		self.deadBag.add(item)
 
-	def _clean_refs(self):
+	def _expunge(self):
 		'''Remove objects marked as being dead.'''
 		self.bag.difference_update(self.deadBag)
 		self.deadBag.clear()
@@ -444,7 +542,7 @@ class GameObjectSet:
 class WeakPriorityQueue:
 	'''A poor man's associative priority queue. This is likely to be slow. It is
 	only meant to contain a small number of items. Don't use this to store game
-	objects; use GameObjectPriorityQueue instead.
+	objects; use SafePriorityQueue instead.
 	'''
 
 	def __init__(self):
@@ -538,27 +636,27 @@ class WeakPriorityQueue:
 	def __str__(self):
 		return str(self.queue)
 
-class GameObjectPriorityQueue:
+class SafePriorityQueue:
 	def __init__(self):
 		self.q = WeakPriorityQueue()
 		self.deadBag = weakref.WeakSet()
 
 	def __contains__(self, item):
-		if item.invalid:
+		if hasattr(item, 'invalid') and item.invalid:
 			return False
 		return item in self.q
 
 	def push(self, item, priority):
 		self.q.push(item, priority)
-		self._clean_refs()
+		self._expunge()
 
 	def discard(self, item):
 		self.q.discard(item)
-		self._clean_refs()
+		self._expunge()
 
 	def top(self):
 		for item in reversed(self.q):
-			if item.invalid:
+			if hasattr(item, 'invalid') and item.invalid:
 				self._flag_removal(item)
 			else:
 				return item
@@ -569,7 +667,7 @@ class GameObjectPriorityQueue:
 		next explicit mutation (add() or discard()).'''
 		self.deadBag.add(item)
 
-	def _clean_refs(self):
+	def _expunge(self):
 		'''Remove objects marked as being dead.'''
 		for item in self.deadBag:
 			self.q.discard(item)
@@ -635,7 +733,7 @@ class EventBus(metaclass=Singleton):
 
 	def __init__(self):
 		self.listeners = weakref.WeakSet()
-		self.gamobListeners = GameObjectSet()
+		self.gamobListeners = SafeSet()
 		self.eventQueue = []
 		self.eventCache = {}
 		self.lastCaller = (None, 0)

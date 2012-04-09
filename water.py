@@ -61,7 +61,7 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		if DEBUG:
 			self.floatMarker = bxt.utils.add_object('VectorMarker', 0)
 
-		self.floatingActors = bxt.types.GameObjectSet()
+		self.floatingActors = bxt.types.SafeSet()
 		self.set_state(self.S_IDLE)
 
 	def spawn_surface_decal(self, name, position):
