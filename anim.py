@@ -31,7 +31,7 @@ the end:
 
 import bge
 
-from . import types
+from . import types, utils
 
 DEBUG = False
 
@@ -137,21 +137,26 @@ class Animator(types.BX_GameObject, bge.types.KX_GameObject):
                         print("success")
                     obTriggers.remove(trigger)
 
-def get_animator():
-    '''Gets the animator of the current scene.'''
-    sce = bge.logic.getCurrentScene()
-    return sce.objects["BXT_Animator"]
+def get_animator(ob):
+    '''Gets the animator of the given object.'''
+    if hasattr(ob, 'scene'):
+        # BX_GameObjects hold a reference to their scene.
+        scene = ob.scene
+    else:
+        # KX_GameObjects don't, so we have to search for it.
+        scene = utils.get_scene(ob)
+    return scene.objects["BXT_Animator"]
 
 def add_trigger_end(ob, layer, callback):
     '''Adds a trigger that runs once at the end of the animation.'''
-    get_animator().add_trigger(ob, TriggerEnd(layer, callback))
+    get_animator(ob).add_trigger(ob, TriggerEnd(layer, callback))
 
 def add_trigger_gte(ob, layer, frame, callback):
     '''Adds a trigger that runs once when 'frame' is reached (or before 'frame'
     is reached if running backwards).'''
-    get_animator().add_trigger(ob, TriggerGTE(layer, frame, callback))
+    get_animator(ob).add_trigger(ob, TriggerGTE(layer, frame, callback))
 
 def add_trigger_lt(ob, layer, frame, callback):
     '''Adds a trigger that runs once before 'frame' is reached (or after 'frame'
     is reached if running backwards).'''
-    get_animator().add_trigger(ob, TriggerLT(layer, frame, callback))
+    get_animator(ob).add_trigger(ob, TriggerLT(layer, frame, callback))

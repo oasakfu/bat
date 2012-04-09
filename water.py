@@ -102,7 +102,7 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		#
 		# Create object.
 		#
-		bubble = logic.getCurrentScene().addObject('Bubble', self)
+		bubble = self.scene.addObject('Bubble', self)
 		bubble.worldPosition = pos
 		self.floatingActors.add(bubble)
 		self.set_state(Water.S_FLOATING)
