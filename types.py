@@ -390,7 +390,7 @@ class SafeList:
 		return n
 
 	def append(self, item):
-		self.expunge()
+		self._expunge()
 		if hasattr(item, 'invalid') and item.invalid:
 			return
 		return self._list.append(item)
@@ -432,7 +432,7 @@ class SafeList:
 		raise IndexError("list index out of range")
 
 	def __setitem__(self, index, item):
-		self.expunge()
+		self._expunge()
 		# After expunging, the all items in the internal list will have the
 		# right length - so it's OK to just call the wrapped method.
 		if hasattr(item, 'invalid') and item.invalid:
@@ -440,10 +440,10 @@ class SafeList:
 		return self._list.__setitem__(index, item)
 
 	def __delitem__(self, index):
-		self.expunge()
+		self._expunge()
 		return self._list.__delitem__(index)
 
-	def expunge(self):
+	def _expunge(self):
 		new_list = []
 		for item in self._list:
 			if hasattr(item, 'invalid') and item.invalid:
@@ -732,8 +732,7 @@ class EventBus(metaclass=Singleton):
 	'''Delivers messages to listeners.'''
 
 	def __init__(self):
-		self.listeners = weakref.WeakSet()
-		self.gamobListeners = SafeSet()
+		self.listeners = SafeSet()
 		self.eventQueue = []
 		self.eventCache = {}
 		self.lastCaller = (None, 0)
@@ -742,16 +741,10 @@ class EventBus(metaclass=Singleton):
 	def add_listener(self, listener):
 		if DEBUG:
 			print("added event listener", listener)
-		if hasattr(listener, 'invalid'):
-			self.gamobListeners.add(listener)
-		else:
-			self.listeners.add(listener)
+		self.listeners.add(listener)
 
 	def remove_listener(self, listener):
-		if hasattr(listener, 'invalid'):
-			self.gamobListeners.discard(listener)
-		else:
-			self.listeners.discard(listener)
+		self.listeners.discard(listener)
 
 	def _enqueue(self, event, delay):
 		'''Queue a message for sending after a delay.
@@ -817,8 +810,6 @@ class EventBus(metaclass=Singleton):
 		if DEBUG:
 			print('Sending', event)
 		for listener in self.listeners.copy():
-			listener.on_event(event)
-		for listener in self.gamobListeners.copy():
 			listener.on_event(event)
 		self.eventCache[event.message] = event
 
