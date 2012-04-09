@@ -217,3 +217,4 @@ def get_scene(ob):
 	for sce in logic.getSceneList():
 		if ob in sce.objects:
 			return sce
+	raise ValueError("Object does not belong to any scene.")

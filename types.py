@@ -227,11 +227,16 @@ class BX_GameObject(metaclass=GameOb):
 		exist.'''
 		bxt.utils.set_default_prop(self, propName, defaultValue)
 
-	def get_scene(self):
+	def _get_scene(self):
 		'''Get the scene that this object exists in. Sometimes this is preferred
 		over bge.logic.getCurrentScene, e.g. if this object is responding to an
 		event sent from another scene.'''
-		return bxt.utils.get_scene(self)
+		try:
+			return self._scene
+		except AttributeError:
+			self._scene = bxt.utils.get_scene(self)
+			return self._scene
+	scene = property(_get_scene)
 
 	def find_descendant(self, propCriteria):
 		'''Finds a descendant of this object that matches a set of criteria.
