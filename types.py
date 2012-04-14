@@ -415,9 +415,14 @@ class SafeList:
 		raise ValueError("Item is not in list")
 
 	def remove(self, item):
+		self._expunge()
 		if hasattr(item, 'invalid') and item.invalid:
 			raise ValueError("Item has expired.")
 		return self._list.remove(item)
+
+	def pop(self, index=-1):
+		self._expunge()
+		return self._list.pop(index)
 
 	def extend(self, iterable):
 		for item in iterable:
@@ -429,14 +434,25 @@ class SafeList:
 		return self._list.count(item)
 
 	def __getitem__(self, index):
-		i = 0
-		for item in self._list:
-			if hasattr(item, 'invalid') and item.invalid:
-				continue
-			if i == index:
-				return item
-			else:
-				i += 1
+		# Todo: allow negative indices.
+		if index < 0:
+			i = -1
+			for item in reversed(self._list):
+				if hasattr(item, 'invalid') and item.invalid:
+					continue
+				if i == index:
+					return item
+				else:
+					i -= 1
+		else:
+			i = 0
+			for item in self._list:
+				if hasattr(item, 'invalid') and item.invalid:
+					continue
+				if i == index:
+					return item
+				else:
+					i += 1
 		raise IndexError("list index out of range")
 
 	def __setitem__(self, index, item):
@@ -462,11 +478,15 @@ class SafeList:
 		for item in self._list:
 			if hasattr(item, 'invalid') and item.invalid:
 				self._on_automatic_removal(item)
-			new_list.append(item)
+			else:
+				new_list.append(item)
 		self._list = new_list
 
 	def __str__(self):
 		return str(list(self))
+
+	def _on_automatic_removal(self, item):
+		pass
 
 
 class SafeSet:
@@ -556,75 +576,42 @@ class SafeSet:
 		self.bag.difference_update(self.deadBag)
 		self.deadBag.clear()
 
-class WeakPriorityQueue:
-	'''A poor man's associative priority queue. This is likely to be slow. It is
-	only meant to contain a small number of items. Don't use this to store game
-	objects; use SafePriorityQueue instead.
+class SafePriorityStack(SafeList):
+	'''
+	A poor man's associative priority queue. This is likely to be slow. It is
+	only meant to contain a small number of items.
 	'''
 
 	def __init__(self):
 		'''Create a new, empty priority queue.'''
-
-		self.queue = []
+		super(SafePriorityStack, self).__init__()
 		self.priorities = {}
 
-	def __len__(self):
-		return len(self.queue)
-
-	def __getitem__(self, y):
-		'''Get the yth item from the queue. 0 is the bottom (oldest/lowest
-		priority); -1 is the top (youngest/highest priority).
-		'''
-
-		return self.queue[y]()
-
-	def __contains__(self, item):
-		ref = weakref.ref(item)
-		return ref in self.priorities
-
-	def _index(self, ref, *args, **kwargs):
-		return self.queue.index(ref, *args, **kwargs)
-
-	def index(self, item, *args, **kwargs):
-		return self._index(weakref.ref(item), *args, **kwargs)
-
 	def push(self, item, priority):
-		'''Add an item to the end of the queue. If the item is already in the
-		queue, it is removed and added again using the new priority.
+		'''Add an item to the stack. If the item is already in the stack, it is
+		removed and added again using the new priority.
 
 		Parameters:
-		item:     The item to store in the queue.
-		priority: Items with higher priority will be stored higher on the queue.
+		item:     The item to place on the stack.
+		priority: Items with higher priority will be stored higher on the stack.
 		          0 <= priority. (Integer)
 		'''
 
-		def autoremove(r):
-			self._discard(r)
-
-		ref = weakref.ref(item, autoremove)
-
-		if ref in self.priorities:
+		if item in self.priorities:
 			self.discard(item)
 
-		i = len(self.queue)
-		while i > 0:
-			refOther = self.queue[i - 1]
-			priOther = self.priorities[refOther]
-			if priOther <= priority:
+		# Insert at the front of the list of like-priority items.
+		idx = 0
+		for other in self:
+			if self.priorities[other] <= priority:
 				break
-			i -= 1
-		self.queue.insert(i, ref)
+			idx += 1
+		super(SafePriorityStack, self).insert(idx, item)
 
-		self.priorities[ref] = priority
+		self.priorities[item] = priority
 
-		return i
-
-	def _discard(self, ref):
-		try:
-			self.queue.remove(ref)
-			del self.priorities[ref]
-		except KeyError:
-			pass
+	def _on_automatic_removal(self, item):
+		del self.priorities[item]
 
 	def discard(self, item):
 		'''Remove an item from the queue.
@@ -632,7 +619,13 @@ class WeakPriorityQueue:
 		Parameters:
 		key: The key that was used to insert the item.
 		'''
-		self._discard(weakref.ref(item))
+		try:
+			super(SafePriorityStack, self).remove(item)
+			del self.priorities[item]
+		except KeyError:
+			pass
+		except ValueError:
+			pass
 
 	def pop(self):
 		'''Remove the highest item in the queue.
@@ -643,64 +636,31 @@ class WeakPriorityQueue:
 		IndexError: if the queue is empty.
 		'''
 
-		ref = self.queue.pop()
-		del self.priorities[ref]
-		return ref()
+		item = super(SafePriorityStack, self).pop(0)
+		del self.priorities[item]
+		return item
 
 	def top(self):
-		return self[-1]
+		return self[0]
 
-	def __str__(self):
-		return str(self.queue)
+	def append(self, item):
+		raise NotImplementedError("Use 'push' instead.")
 
-class SafePriorityQueue:
-	def __init__(self):
-		self.q = WeakPriorityQueue()
-		self.deadBag = weakref.WeakSet()
+	def remove(self, item):
+		raise NotImplementedError("Use 'discard' instead.")
 
-	def __contains__(self, item):
-		if hasattr(item, 'invalid') and item.invalid:
-			return False
-		return item in self.q
+	def __setitem__(self, index, item):
+		raise NotImplementedError("Use 'push' instead.")
 
-	def push(self, item, priority):
-		self.q.push(item, priority)
-		self._expunge()
-
-	def discard(self, item):
-		self.q.discard(item)
-		self._expunge()
-
-	def top(self):
-		for item in reversed(self.q):
-			if hasattr(item, 'invalid') and item.invalid:
-				self._flag_removal(item)
-			else:
-				return item
-		raise IndexError('This queue is empty.')
-
-	def _flag_removal(self, item):
-		'''Mark an object for garbage collection. Actual removal happens at the
-		next explicit mutation (add() or discard()).'''
-		self.deadBag.add(item)
-
-	def _expunge(self):
-		'''Remove objects marked as being dead.'''
-		for item in self.deadBag:
-			self.q.discard(item)
-		self.deadBag.clear()
+	def insert(self, index, item):
+		raise NotImplementedError("Use 'push' instead.")
 
 	def __str__(self):
 		string = "["
-		first = True
-		for ob in self.q:
-			if ob.invalid:
-				continue
-			if not first:
+		for item in self:
+			if len(string) > 1:
 				string += ", "
-			else:
-				first = False
-			string += ob.name
+			string += "%s@%d" % (item, self.priorities[item])
 		string += "]"
 		return string
 
