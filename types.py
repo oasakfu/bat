@@ -301,13 +301,13 @@ def mutate(o):
 	else:
 		return cls(o)
 
-def add_and_mutate_object(scene, object, other=None, time=0):
+def add_and_mutate_object(scene, ob, other=None, time=0):
 	'''Add an object to the scene, and mutate it according to its Class
 	property.'''
 
 	if other == None:
-		other = object
-	o = scene.addObject(object, other, time)
+		other = ob
+	o = scene.addObject(ob, other, time)
 	return mutate(o)
 
 #
