@@ -223,8 +223,16 @@ def modulate_by_angv(c):
 	angV = mathutils.Vector(o.getAngularVelocity(False))
 	_modulate(angV.magnitude, c)
 
+_warnings_printed = set()
+
 def play_sample(filename):
-	dev = aud.device()
-	path = logic.expandPath(filename)
-	sample = aud.Factory(path)
-	dev.play(sample)
+	try:
+		dev = aud.device()
+		path = logic.expandPath(filename)
+		sample = aud.Factory(path)
+		dev.play(sample)
+	except aud.error as e:
+		if not filename in _warnings_printed:
+			print("Error playing sound file %s" % filename)
+			print(e)
+		_warnings_printed.add(filename)

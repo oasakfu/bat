@@ -23,6 +23,7 @@ import bge
 import bxt.utils
 
 DEBUG = False
+DEBUG_EVENT_RECIPIENTS = False
 PROFILE_BASIC = False
 PROFILE_STOCHASTIC = False
 
@@ -787,6 +788,8 @@ class EventBus(metaclass=Singleton):
 		if DEBUG:
 			print('Sending', event)
 		for listener in self.listeners.copy():
+			if DEBUG_EVENT_RECIPIENTS:
+				print('\ttarget = %s' % str(listener))
 			listener.on_event(event)
 		self.eventCache[event.message] = event
 
