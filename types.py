@@ -272,6 +272,12 @@ class BX_GameObject(metaclass=GameOb):
 
 		return find_recursive(self.children)
 
+	def to_local(self, point):
+		return bxt.bmath.to_local(self, point)
+
+	def to_world(self, point):
+		return bxt.bmath.to_world(self, point)
+
 clsCache = {}
 def _get_class(qualifiedName):
 	if qualifiedName in clsCache:
