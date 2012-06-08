@@ -48,6 +48,10 @@ def lerp(a, b, fac):
 	'''
 	return a + ((b - a) * fac)
 
+def unlerp(a, b, value):
+	'''Find how far between two numbers a value is.'''
+	return (value - a) / (b - a)
+
 def smerp(currentDelta, currentValue, target, speedFactor, responsiveness):
 	'''Smooth exponential average interpolation
 	For each time step, try to move toward the target by some fraction of
