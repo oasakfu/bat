@@ -30,7 +30,12 @@ current_handle = None
 old_handles = []
 
 def play(*filepaths, volume=1.0, loop=True):
-	'''Start playing a new track.'''
+	'''
+	Start playing a new track.
+	@param *filepaths: These sound files will be played in order.
+	@param loop: Make the track loop. Only the last file specified in
+		'filepaths' will loop; the others will form the introduction.
+	'''
 
 	# Construct a factory for each file.
 	segments = []
@@ -59,6 +64,9 @@ def play_permutation(*filepaths, volume=1.0, loop=True):
 		3! * (3 * 20) = 6 * 60 = 360s
 
 	before repeating.
+
+	@param loop: Make the track loop. All files in 'filepaths' will loop, in the
+		sequence described above.
 	'''
 	# Construct a factory for each file.
 	segments = []
