@@ -284,6 +284,8 @@ class BX_GameObject(metaclass=GameOb):
 		if "_old_name" in self:
 			return "%s (was %s)" % (super(BX_GameObject, self).__repr__(),
 					self["_old_name"])
+		else:
+			return super(BX_GameObject, self).__repr__()
 
 clsCache = {}
 def _get_class(qualifiedName):
