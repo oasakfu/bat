@@ -182,7 +182,9 @@ class GameOb(type):
 		if ob == None:
 			ob = bge.logic.getCurrentController().owner
 		if 'template' in ob:
+			old_name = ob.name
 			ob = bxt.utils.replaceObject(ob['template'], ob)
+			ob['_old_name'] = old_name
 		return super(GameOb, self).__call__(ob)
 
 	def expose_method(self, methodName, method, module, prefix):
@@ -277,6 +279,11 @@ class BX_GameObject(metaclass=GameOb):
 
 	def to_world(self, point):
 		return bxt.bmath.to_world(self, point)
+
+	def __repr__(self):
+		if "_old_name" in self:
+			return "%s (was %s)" % (super(BX_GameObject, self).__repr__(),
+					self["_old_name"])
 
 clsCache = {}
 def _get_class(qualifiedName):
