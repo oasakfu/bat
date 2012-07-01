@@ -28,6 +28,15 @@ MIN_VOLUME = 0.001
 # cycle through different samples for a named sound.
 #
 _SoundActuatorIndices = {}
+_volume_map = {}
+
+def set_volume(object_name, volume):
+	'''
+	Sets the volume for a particular object. If that object later calls one the
+	methods in this module to play a sound, the volume specified here will be
+	used.
+	'''
+	_volume_map[object_name] = volume
 
 @bxt.utils.all_sensors_positive
 @bxt.utils.controller
@@ -54,10 +63,6 @@ def play_with_random_pitch(c):
 	o = c.owner
 
 	try:
-		o['SoundID']
-	except KeyError:
-		o['SoundID'] = None
-	try:
 		o['PitchMin']
 	except KeyError:
 		o['PitchMin'] = 0.8
@@ -70,21 +75,24 @@ def play_with_random_pitch(c):
 	# Select an actuator.
 	#
 	i = 0
-	soundID = o['SoundID']
 	try:
-		i = _SoundActuatorIndices[soundID]
+		i = _SoundActuatorIndices[o.name]
 	except KeyError:
-		_SoundActuatorIndices[soundID] = 0
+		_SoundActuatorIndices[o.name] = 0
 		i = 0
 
 	i = i % len(c.actuators)
 	a = c.actuators[i]
-	_SoundActuatorIndices[soundID] = i + 1
+	_SoundActuatorIndices[o.name] = i + 1
 
 	#
 	# Set the pitch and activate!
 	#
 	a.pitch = bxt.bmath.lerp(o['PitchMin'], o['PitchMax'], logic.getRandomFloat())
+	try:
+		a.volume = _volume_map[o.name]
+	except KeyError:
+		pass
 	c.activate(a)
 
 @bxt.utils.controller
@@ -124,15 +132,14 @@ def _fade(c, maxVolume):
 		return
 
 	try:
-		o['VolumeMult']
-	except KeyError:
-		o['VolumeMult'] = 1.0
-	try:
 		o['SoundFadeFac']
 	except KeyError:
 		o['SoundFadeFac'] = 0.05
 
-	maxVolume = maxVolume * o['VolumeMult']
+	try:
+		maxVolume = _volume_map[o.name]
+	except KeyError:
+		maxVolume = 1.0
 
 	targetVolume = 0.0
 	for s in c.sensors:

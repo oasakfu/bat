@@ -386,7 +386,8 @@ class ArcRay(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 				if DEBUG:
 					bge.render.drawLine(A, p, bxt.render.ORANGE.xyz)
 				break
-			elif DEBUG:
+			else:
+				if DEBUG:
 					bge.render.drawLine(A, B, bxt.render.YELLOW.xyz)
 
 		wp = refMat * self.lastHitPoint
