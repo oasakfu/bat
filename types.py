@@ -570,13 +570,28 @@ class SafeSet:
 		self.bag.update(iterable)
 		self._expunge()
 
+	def union(self, iterable):
+		newset = SafeSet()
+		newset.bag = self.bag.union(iterable)
+		return newset
+
 	def difference_update(self, iterable):
 		self.bag.difference_update(iterable)
 		self._expunge()
 
+	def difference(self, iterable):
+		newset = SafeSet()
+		newset.bag = self.bag.difference(iterable)
+		return newset
+
 	def intersection_update(self, iterable):
 		self.bag.intersection_update(iterable)
 		self._expunge()
+
+	def intersection(self, iterable):
+		newset = SafeSet()
+		newset.bag = self.bag.intersection(iterable)
+		return newset
 
 	def clear(self):
 		self.bag.clear()

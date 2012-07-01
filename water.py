@@ -158,7 +158,7 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 	def apply_damping(self, linV, submergedFactor):
 		return bxt.bmath.lerp(linV, bxt.bmath.ZEROVEC, self['DampingFactor'] * submergedFactor)
 
-	def float(self, actor):
+	def apply_buoyancy(self, actor):
 		'''Adjust the velocity of an object to make it float on the water.
 
 		Returns: True if the object is floating; False otherwise (e.g. if it has
@@ -271,48 +271,54 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 				forceFields.append(child)
 
 		# Transfer floatation to hierarchy root (since children can't be
-		# dynamic).
-		self.floatingActors.update(hitActors)
-		for actor in self.floatingActors.copy():
-			if actor.parent != None and not actor.parent in self.floatingActors:
-				self.floatingActors.remove(actor)
-				parent = actor.parent
-				self.set_defaults(parent)
-				parent['CurrentBuoyancy'] = min(actor['CurrentBuoyancy'], parent['Buoyancy'])
-				actor['CurrentBuoyancy'] = actor['Buoyancy']
-				parent['Oxygen'] = actor['Oxygen']
-				actor['Oxygen'] = 1.0
-				# Order is important here: parent should be notified last.
-				# Control may be being passed to the parent, so its side-effects
-				# are more important.
-				if hasattr(actor, 'on_oxygen_set'):
-					actor.on_oxygen_set()
-				if hasattr(parent, 'on_oxygen_set'):
-					parent.on_oxygen_set()
-				self.floatingActors.add(parent)
-				print (parent['CurrentBuoyancy'])
+		# dynamic). This accounts for the case where an object has started
+		# interacting with the water, but then changes its hierarchy.
+		floating_actors = self.floatingActors.union(hitActors)
+		floating_actors.update(hitActors)
+		for actor in floating_actors.copy():
+			root = actor
+			while root.parent != None:
+				root = root.parent
+			if root is not actor:
+				floating_actors.remove(actor)
+				self.set_defaults(root)
+				root['CurrentBuoyancy'] = min(actor['CurrentBuoyancy'], root['Buoyancy'])
+				root['Oxygen'] = actor['Oxygen']
+				floating_actors.add(root)
 
 		# Apply buoyancy to actors.
-		for actor in self.floatingActors.copy():
+		for actor in floating_actors.copy():
 			self.set_defaults(actor)
-			submergedFactor = self.float(actor)
+			submergedFactor = self.apply_buoyancy(actor)
 
-			if actor['Oxygen'] <= 0.0 and hasattr(actor, 'drown'):
-				actor['Oxygen'] = 1.0
-				if hasattr(actor, 'on_oxygen_set'):
-					actor.on_oxygen_set()
-				actor.drown()
-				self.floatingActors.discard(actor)
-				actor['Floating'] = False
+			#
+			# Tell the actor how much it is submerged, in case it is not moved
+			# using the game engine's velocity model (e.g. if its position is
+			# set manually).
+			#
+			actor['SubmergedFactor'] = submergedFactor
 
 			if submergedFactor < 0.1:
-				self.floatingActors.discard(actor)
-				actor['Floating'] = False
+				floating_actors.discard(actor)
+			elif actor['Oxygen'] <= 0.0 and hasattr(actor, 'drown'):
+				actor.drown()
+				floating_actors.discard(actor)
 			else:
 				actor['Floating'] = True
 				for ff in forceFields:
 					ff.touchedSingle(actor, submergedFactor)
 
+		# Reset actors that are no longer floating.
+		no_longer_floating = self.floatingActors.difference(floating_actors)
+		for actor in no_longer_floating:
+			actor['Oxygen'] = 1.0
+			if hasattr(actor, 'on_oxygen_set'):
+				actor.on_oxygen_set()
+			actor['Floating'] = False
+			actor['CurrentBuoyancy'] = actor['Buoyancy']
+			actor['SubmergedFactor'] = 0.0
+
+		self.floatingActors = floating_actors
 		if len(self.floatingActors) > 0:
 			self.set_state(self.S_FLOATING)
 		else:
