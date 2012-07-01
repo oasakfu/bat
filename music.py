@@ -29,8 +29,6 @@ VOLUME_INCREMENT = 0.005
 current_handle = None
 old_handles = []
 
-print("Audio channels:", aud.device().channels)
-
 def play(*filepaths, volume=1.0, loop=True):
 	'''
 	Start playing a new track.
