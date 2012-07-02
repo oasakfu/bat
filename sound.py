@@ -136,10 +136,8 @@ def _fade(c, maxVolume):
 	except KeyError:
 		o['SoundFadeFac'] = 0.05
 
-	try:
-		maxVolume = _volume_map[o.name]
-	except KeyError:
-		maxVolume = 1.0
+	if o.name in _volume_map:
+		maxVolume *= _volume_map[o.name]
 
 	targetVolume = 0.0
 	for s in c.sensors:
