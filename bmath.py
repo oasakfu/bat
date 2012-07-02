@@ -311,6 +311,10 @@ class Box2D:
 		h = self.yHigh - self.yLow
 		return w * h
 
+	def __repr__(self):
+		return "Box(x={:g}, y={:g}), a={:g})".format(self.xHigh - self.xLow,
+				self.yHigh - self.yLow, self.get_area())
+
 class ArcRay(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 	'''Like a Ray sensor, but the detection is done along an arc. The arc
 	rotates around the y-axis, starting from the positive z-axis and sweeping
