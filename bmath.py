@@ -69,6 +69,30 @@ def smerp(currentDelta, currentValue, target, speedFactor, responsiveness):
 	currentValue = currentValue + currentDelta
 	return currentDelta, currentValue
 
+def integrate(pos, vel, accel, damp):
+	'''
+	Apply acceleration and damping to a position and velocity.
+	@param pos: The current position (scalar or vector of degree N).
+	@param vel: The current velocity (scalar or vector of degree N).
+	@param accel: The acceleration (scalar or vector of degree N).
+	@param damp: The damping (scalar).
+	@return: tuple(new position, new velocity).
+	'''
+	vel_new = (vel + accel) * (1.0 - damp)
+	pos_new = pos + vel_new
+	return pos_new, vel_new
+
+def integrate_v(vel, accel, damp):
+	'''
+	Apply acceleration and damping to a velocity.
+	@param vel: The current velocity (scalar or vector of degree N).
+	@param accel: The acceleration (scalar or vector of degree N).
+	@param damp: The damping (scalar).
+	@return: new velocity.
+	'''
+	vel_new = (vel + accel) * (1.0 - damp)
+	return vel_new
+
 def approach_one(x, c):
 	'''Shift a value to be in the range 0.0 - 1.0. The result increases
 	monotonically. For low values, the result will be close to zero, and will
