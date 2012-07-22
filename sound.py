@@ -230,14 +230,20 @@ def modulate_by_angv(c):
 
 _warnings_printed = set()
 
-def play_sample(filename):
+def play_sample(filename, volume=1.0):
 	try:
 		dev = aud.device()
 		path = logic.expandPath(filename)
 		sample = aud.Factory(path)
+		if volume != 1.0:
+			sample = sample.volume(volume)
 		dev.play(sample)
 	except aud.error as e:
 		if not filename in _warnings_printed:
 			print("Error playing sound file %s" % filename)
 			print(e)
 		_warnings_printed.add(filename)
+
+def play_random_sample(filenames, volume=1.0):
+	i = int(len(filenames) * logic.getRandomFloat())
+	play_sample(filenames[i], volume=volume)
