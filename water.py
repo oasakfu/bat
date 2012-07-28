@@ -212,6 +212,13 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 			self.floatMarker.worldPosition = actor.worldPosition
 			self.floatMarker.localScale = bxt.bmath.ONEVEC * accel
 
+	def constrain_bubble(self, bubble, submerged_factor):
+		'''Don't let bubbles jump out of the water.'''
+		accel = (submerged_factor - 0.5) * 2.0
+		vel = bubble.worldLinearVelocity
+		vel.z *= accel
+		bubble.worldLinearVelocity = vel
+
 	def update_buoyancy(self, actor, submerged_factor):
 		'''Update buoyancy (take on water).'''
 		if submerged_factor <= 0.01:
@@ -241,6 +248,41 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 
 		actor['Water_RippleWait'] = Water.RIPPLE_INTERVAL
 		self.spawn_surface_decal('Ripple', actor.worldPosition)
+
+	def integrate(self, actor, force_fields):
+		self.set_defaults(actor)
+		submerged_factor = self.get_submerged_factor(actor)
+
+		#
+		# Tell the actor how much it is submerged, in case it is not moved
+		# using the game engine's velocity model (e.g. if its position is
+		# set manually).
+		#
+		actor['SubmergedFactor'] = submerged_factor
+
+		self.apply_forces(actor, submerged_factor, force_fields)
+
+		if self.isBubble(actor):
+			self.constrain_bubble(actor, submerged_factor)
+			self.reduce_oxygen_bubble(actor, submerged_factor)
+		else:
+			self.update_buoyancy(actor, submerged_factor)
+			self.reduce_oxygen(actor, submerged_factor)
+			if submerged_factor < 0.99:
+				self.spawn_ripples(actor)
+			if submerged_factor <= 0.0:
+				self.floatingActors.discard(actor)
+
+		if actor['Oxygen'] <= 0.0:
+			if hasattr(actor, 'drown'):
+				actor.drown()
+			else:
+				actor.endObject()
+			self.floatingActors.discard(actor)
+		else:
+			actor['Floating'] = True
+			if hasattr(actor, 'on_float'):
+				actor.on_float(self)
 
 	def _on_collision(self, hitActors):
 		'''
@@ -274,35 +316,7 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 
 		# Apply buoyancy to actors.
 		for actor in self.floatingActors.copy():
-			self.set_defaults(actor)
-			submerged_factor = self.get_submerged_factor(actor)
-
-			self.apply_forces(actor, submerged_factor, force_fields)
-			self.update_buoyancy(actor, submerged_factor)
-			self.reduce_oxygen(actor, submerged_factor)
-
-			#
-			# Tell the actor how much it is submerged, in case it is not moved
-			# using the game engine's velocity model (e.g. if its position is
-			# set manually).
-			#
-			actor['SubmergedFactor'] = submerged_factor
-
-			if submerged_factor > 0.05 and submerged_factor < 0.99:
-				self.spawn_ripples(actor)
-
-			if submerged_factor <= 0.0:
-				self.floatingActors.discard(actor)
-			elif actor['Oxygen'] <= 0.0:
-				if hasattr(actor, 'drown'):
-					actor.drown()
-				else:
-					actor.endObject()
-				self.floatingActors.discard(actor)
-			else:
-				actor['Floating'] = True
-				if hasattr(actor, 'on_float'):
-					actor.on_float(self)
+			self.integrate(actor, force_fields)
 
 		# Reset actors that are no longer floating.
 		no_longer_floating = old_floating_actors.difference(self.floatingActors)
