@@ -68,39 +68,42 @@ class ForceField(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 				actors.add(ob)
 
 		for a in actors:
-			self.touchedSingle(a)
+			self.touched_single(a)
 
-	def touchedSingle(self, actor, factor = 1.0):
-		'''Called when an object is inside the force field.'''
-		pos = mathutils.Vector(actor.worldPosition)
+	def get_world_acceleration(self, actor):
+		pos = actor.worldPosition
+		dist = (pos - self.worldPosition).magnitude
 
-		if (bxt.bmath.manhattan_dist(pos, self.worldPosition) >
-			self['FFDist2']):
-			return
+		if dist > self['FFDist2'] or dist < 0.0001:
+			return bxt.bmath.ZEROVEC.copy()
 
 		pos = bxt.bmath.to_local(self, pos)
 		if 'FFZCut' in self and self['FFZCut'] and (pos.z > 0.0):
-			return
+			return bxt.bmath.ZEROVEC.copy()
 
 		vec = self.get_force_direction(pos)
-		dist = vec.magnitude
-		if dist != 0.0:
-			vec.normalize()
+
+		vec.normalize()
 		magnitude = self.get_magnitude(dist)
-		vec *= magnitude * factor
-		vec = bxt.bmath.to_world_vec(self, vec)
+		vec *= magnitude
+		return bxt.bmath.to_world_vec(self, vec)
+
+	def touched_single(self, actor):
+		'''Called when an object is inside the force field.'''
+
+		accel = self.get_world_acceleration(actor)
 
 		if DEBUG:
+			pos = bxt.bmath.to_local(self, actor.worldPosition)
 			self.forceMarker.worldPosition = bxt.bmath.to_world(self, pos)
-			if vec.magnitude > bxt.bmath.EPSILON:
-				self.forceMarker.alignAxisToVect(vec, 2)
+			if accel.magnitude > bxt.bmath.EPSILON:
+				self.forceMarker.alignAxisToVect(accel, 2)
 				self.forceMarker.color = bxt.render.YELLOW
 			else:
 				self.forceMarker.color = bxt.render.BLACK
 
-		linV = mathutils.Vector(actor.getLinearVelocity(False))
-		linV += vec
-		actor.setLinearVelocity(linV, False)
+		actor.worldLinearVelocity = bxt.bmath.integrate_v(
+				actor.worldLinearVelocity, accel, 0.0)
 
 	def get_force_direction(self, localPos):
 		'''Returns the Vector along which the acceleration will be applied, in

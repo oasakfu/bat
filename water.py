@@ -40,6 +40,9 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 	S_IDLE = 2
 	S_FLOATING = 3
 
+	RIPPLE_MIN_VEL = 1.0
+	RIPPLE_INTERVAL = 20
+
 	def __init__(self, old_owner):
 		'''
 		Create a water object that can respond to things touching it. The mesh
@@ -56,7 +59,6 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		self.set_default_prop('VolumeCol', '#22448880')
 
 		self.InstanceAngle = 0.0
-		self.currentFrame = 0
 
 		if DEBUG:
 			self.floatMarker = bxt.utils.add_object('VectorMarker', 0)
@@ -155,22 +157,8 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 
 		return submergedFactor
 
-	def apply_damping(self, linV, submergedFactor):
-		return bxt.bmath.lerp(linV, bxt.bmath.ZEROVEC, self['DampingFactor'] * submergedFactor)
-
-	def apply_buoyancy(self, actor):
-		'''Adjust the velocity of an object to make it float on the water.
-
-		Returns: True if the object is floating; False otherwise (e.g. if it has
-		sunk or emerged fully).
-		'''
-		#
-		# Find the distance to the water from the UPPER END
-		# of the object.
-		#
-		submergedFactor = self.get_submerged_factor(actor)
-
-		if submergedFactor > 0.9 and not self.isBubble(actor):
+	def reduce_oxygen(self, actor, submerged_factor):
+		if submerged_factor > 0.9:
 			# Object is almost fully submerged. Try to cause it to drown.
 			o2 = actor['Oxygen']
 			if o2 > 0.0:
@@ -181,77 +169,77 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 					actor.on_oxygen_set()
 				if int(o2 * 10) != int(o22 * 10):
 					self.spawn_bubble(actor)
-
-		elif submergedFactor < 0.9 and self.isBubble(actor):
-			# Bubbles are the opposite: they lose 'Oxygen' when they are not
-			# fully submerged.
-			actor['Oxygen'] -= actor['OxygenDepletionRate']
-			if actor['Oxygen'] <= 0.0:
-				self.spawn_surface_decal('Ripple', actor.worldPosition)
-
 		else:
 			actor['Oxygen'] = 1.0
 			if hasattr(actor, 'on_oxygen_set'):
 				actor.on_oxygen_set()
 
-		if submergedFactor <= 0.1 and not self.isBubble(actor):
-			# Object has emerged.
-			actor['CurrentBuoyancy'] = actor['Buoyancy']
-			return submergedFactor
+	def reduce_oxygen_bubble(self, bubble, submerged_factor):
+		if submerged_factor < 0.9:
+			# Bubbles are the opposite: they lose 'Oxygen' when they are not
+			# fully submerged.
+			bubble['Oxygen'] -= bubble['OxygenDepletionRate']
+			if bubble['Oxygen'] <= 0.0:
+				self.spawn_surface_decal('Ripple', bubble.worldPosition)
+
+	def apply_forces(self, actor, submerged_factor, force_fields):
+		'''Adjust the velocity of an object to make it float on the water.
+
+		Returns: True if the object is floating; False otherwise (e.g. if it has
+		sunk or emerged fully).
+		'''
 
 		#
 		# Object is partially submerged. Apply acceleration away from the
 		# water (up). Acceleration increases linearly with the depth, until the
 		# object is fully submerged.
 		#
-		submergedFactor = bxt.bmath.clamp(0.0, 1.0, submergedFactor)
-		accel = mathutils.Vector((0.0, 0.0,
-				submergedFactor * actor['CurrentBuoyancy']))
-		actor.worldLinearVelocity = bxt.bmath.integrate_v(actor.worldLinearVelocity,
-				accel, self['DampingFactor'] * submergedFactor)
+		submerged_factor = bxt.bmath.clamp(0.0, 1.0, submerged_factor)
+		accel = mathutils.Vector((0.0, 0.0, actor['CurrentBuoyancy']))
+		for ff in force_fields:
+			accel += ff.get_world_acceleration(actor)
+		accel *= submerged_factor
 
-		actor.worldAngularVelocity = bxt.bmath.integrate_v(actor.worldAngularVelocity,
-				bxt.bmath.ZEROVEC, self['DampingFactor'] * submergedFactor)
+		damping = submerged_factor * self['DampingFactor']
+		actor.worldLinearVelocity = bxt.bmath.integrate_v(
+				actor.worldLinearVelocity, accel, damping)
+
+		# Apply only damping to rotation.
+		actor.worldAngularVelocity = bxt.bmath.integrate_v(
+				actor.worldAngularVelocity, bxt.bmath.ZEROVEC, damping)
 
 		if DEBUG:
 			self.floatMarker.worldPosition = actor.worldPosition
 			self.floatMarker.localScale = bxt.bmath.ONEVEC * accel
 
-		#
-		# Update buoyancy (take on water).
-		#
-		targetBuoyancy = (1.0 - submergedFactor) * actor['Buoyancy']
+	def update_buoyancy(self, actor, submerged_factor):
+		'''Update buoyancy (take on water).'''
+		if submerged_factor <= 0.01:
+			# Object has emerged.
+			actor['CurrentBuoyancy'] = actor['Buoyancy']
+			return
+
+		targetBuoyancy = (1.0 - submerged_factor) * actor['Buoyancy']
 		if targetBuoyancy > actor['CurrentBuoyancy']:
 			actor['CurrentBuoyancy'] += actor['SinkFactor']
 		else:
 			actor['CurrentBuoyancy'] -= actor['SinkFactor']
 
-		if hasattr(actor, 'on_float'):
-			actor.on_float(self)
-
-		return submergedFactor
-
-	def spawn_ripples(self, actor, force = False):
+	def spawn_ripples(self, actor):
 		if self.isBubble(actor):
 			return
 
-		if not force and 'Water_LastFrame' in actor:
-			# This is at least the first time the object has touched the water.
-			# Make sure it has moved a minimum distance before adding a ripple.
-			if actor['Water_LastFrame'] == self.currentFrame:
-				actor['Water_CanRipple'] = True
-
-			if not actor['Water_CanRipple']:
-				# The object has rippled too recently.
+		try:
+			actor['Water_RippleWait'] -= 1
+			if actor['Water_RippleWait'] > 0:
 				return
+		except KeyError:
+			pass
 
-			linV = actor.getLinearVelocity(False)
-			if linV.magnitude < actor['MinRippleSpeed']:
-				# The object hasn't moved fast enough to cause another event.
-				return
+		if actor.worldLinearVelocity.magnitude < Water.RIPPLE_MIN_VEL:
+			return
 
-		actor['Water_LastFrame'] = self.currentFrame
-		actor['Water_CanRipple'] = False
+		actor['Water_RippleWait'] = Water.RIPPLE_INTERVAL
 		self.spawn_surface_decal('Ripple', actor.worldPosition)
 
 	def _on_collision(self, hitActors):
@@ -259,14 +247,10 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		Called when an object collides with the water. Creates ripples and
 		causes objects to float or sink. Should only be called once per frame.
 		'''
-		for actor in hitActors:
-			if not actor.invalid:
-				self.spawn_ripples(actor, False)
-
-		forceFields = []
+		force_fields = []
 		for child in self.children:
 			if isinstance(child, bxt.effectors.ForceField):
-				forceFields.append(child)
+				force_fields.append(child)
 
 		# Transfer floatation to hierarchy root (since children can't be
 		# dynamic). This accounts for the case where an object has started
@@ -280,6 +264,10 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 			if root is not actor:
 				self.floatingActors.remove(actor)
 				self.set_defaults(root)
+				# Just in case the actor was added this frame *and* changed its
+				# hierarchy this frame. Unlikely, but it can happen!
+				self.set_defaults(actor)
+
 				root['CurrentBuoyancy'] = min(actor['CurrentBuoyancy'], root['Buoyancy'])
 				root['Oxygen'] = actor['Oxygen']
 				self.floatingActors.add(root)
@@ -287,24 +275,34 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		# Apply buoyancy to actors.
 		for actor in self.floatingActors.copy():
 			self.set_defaults(actor)
-			submergedFactor = self.apply_buoyancy(actor)
+			submerged_factor = self.get_submerged_factor(actor)
+
+			self.apply_forces(actor, submerged_factor, force_fields)
+			self.update_buoyancy(actor, submerged_factor)
+			self.reduce_oxygen(actor, submerged_factor)
 
 			#
 			# Tell the actor how much it is submerged, in case it is not moved
 			# using the game engine's velocity model (e.g. if its position is
 			# set manually).
 			#
-			actor['SubmergedFactor'] = submergedFactor
+			actor['SubmergedFactor'] = submerged_factor
 
-			if submergedFactor < 0.1:
+			if submerged_factor > 0.05 and submerged_factor < 0.99:
+				self.spawn_ripples(actor)
+
+			if submerged_factor <= 0.0:
 				self.floatingActors.discard(actor)
-			elif actor['Oxygen'] <= 0.0 and hasattr(actor, 'drown'):
-				actor.drown()
+			elif actor['Oxygen'] <= 0.0:
+				if hasattr(actor, 'drown'):
+					actor.drown()
+				else:
+					actor.endObject()
 				self.floatingActors.discard(actor)
 			else:
 				actor['Floating'] = True
-				for ff in forceFields:
-					ff.touchedSingle(actor, submergedFactor)
+				if hasattr(actor, 'on_float'):
+					actor.on_float(self)
 
 		# Reset actors that are no longer floating.
 		no_longer_floating = old_floating_actors.difference(self.floatingActors)
@@ -320,12 +318,6 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 			self.set_state(self.S_FLOATING)
 		else:
 			self.set_state(self.S_IDLE)
-
-		#
-		# Increase the frame counter.
-		#
-		self.currentFrame = ((self.currentFrame + 1) %
-			self['RippleInterval'])
 
 	def set_defaults(self, actor):
 		if '_bxt.waterInit' in actor:
@@ -377,13 +369,10 @@ class ShapedWater(Water):
 	def __init__(self, owner):
 		Water.__init__(self, owner)
 
-	def apply_damping(self, linV, submergedFactor):
-		return bxt.bmath.lerp(linV, bxt.bmath.ZEROVEC, self['DampingFactor'])
-
 	def spawn_bubble(self, actor):
 		'''No bubbles in shaped water.'''
 		pass
 
-	def spawn_ripples(self, actor, force = False):
+	def spawn_ripples(self, actor):
 		'''No ripples in shaped water: too hard to find surface.'''
 		pass
