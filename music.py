@@ -22,7 +22,7 @@ import bge
 
 import bxt
 
-VOLUME_INCREMENT = 0.005
+VOLUME_INCREMENT = 0.002
 
 # Hold two handles: one for the current track (latest result of calling 'play'),
 # and another for the previous one. This is required to do cross-fading.
