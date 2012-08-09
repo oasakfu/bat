@@ -15,9 +15,11 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+from collections import namedtuple
+
 import aud
 import mathutils
-from bge import logic
+import bge
 
 import bxt
 
@@ -88,7 +90,7 @@ def play_with_random_pitch(c):
 	#
 	# Set the pitch and activate!
 	#
-	a.pitch = bxt.bmath.lerp(o['PitchMin'], o['PitchMax'], logic.getRandomFloat())
+	a.pitch = bxt.bmath.lerp(o['PitchMin'], o['PitchMax'], bge.logic.getRandomFloat())
 	try:
 		a.volume = _volume_map[o.name]
 	except KeyError:
@@ -228,22 +230,100 @@ def modulate_by_angv(c):
 	angV = mathutils.Vector(o.getAngularVelocity(False))
 	_modulate(angV.magnitude, c)
 
+# Warnings! Kept in a set so they're only printed once.
 _warnings_printed = set()
 
-def play_sample(filename, volume=1.0):
+# These are sounds that have a location. We manage their location manually to
+# work around this bug:
+# http://projects.blender.org/tracker/?func=detail&atid=306&aid=32096&group_id=9
+_handles= []
+HandleBXT = namedtuple('HandleBXT', ['ident', 'handle', 'source'])
+_localisable_handles = []
+Handle3D = namedtuple('Handle3D', ['ob', 'handle', 'source'])
+
+def play_sample(filename, volume=1.0, pitchmin=1.0, pitchmax=1.0,
+			ob=None, distmin=10.0, distmax=1000000.0, loop=False):
+	'''Play a sound file.'''
+
+	# Don't play sound if it's already playing.
+	# TODO: Make this better: it should:
+	#  - Only play sound if it woulnd't bump off a higher-priority sound.
+	#  - Be able to play multiple copies of a sound if they are tied to
+	#    different objects or something.
+	for h in _handles:
+		if h.ident == filename:
+			return
+
 	try:
 		dev = aud.device()
-		path = logic.expandPath(filename)
+		path = bge.logic.expandPath(filename)
 		sample = aud.Factory(path)
+
 		if volume != 1.0:
 			sample = sample.volume(volume)
-		dev.play(sample)
+
+		if pitchmax != 1.0 or pitchmin != 1.0:
+			pitch = bxt.bmath.lerp(pitchmin, pitchmax,
+					bge.logic.getRandomFloat())
+			sample = sample.pitch(pitch)
+
+		if loop:
+			sample = sample.loop(-1)
+
+		#print("Playing %s at %s" % (filename, ob))
+		handle = dev.play(sample)
+		_handles.append(HandleBXT(filename, handle, filename))
+
+		if ob is not None:
+			handle.location = ob.worldPosition
+			handle.relative = False
+			handle.distance_reference = distmin
+			handle.distance_maximum = distmax
+			handle.attenuation = 10.0
+			_localisable_handles.append(Handle3D(ob, handle, filename))
+
 	except aud.error as e:
 		if not filename in _warnings_printed:
 			print("Error playing sound file %s" % filename)
 			print(e)
 		_warnings_printed.add(filename)
 
-def play_random_sample(filenames, volume=1.0):
-	i = int(len(filenames) * logic.getRandomFloat())
-	play_sample(filenames[i], volume=volume)
+def play_random_sample(filenames, volume=1.0, pitchmin=1.0, pitchmax=1.0,
+			ob=None, distmin=10.0, distmax=1000000.0):
+	'''Play a random sound from a set of files.'''
+	i = int(len(filenames) * bge.logic.getRandomFloat())
+	play_sample(filenames[i], volume=volume, pitchmin=pitchmin,
+			pitchmax=pitchmax, ob=ob, distmin=distmin, distmax=distmax)
+
+def stop(identifier):
+	# Don't need to copy list because iteration stops after removal.
+	for h in _handles:
+		if h.ident == identifier:
+			h.handle.stop()
+			_handles.remove(h)
+			return
+
+def update():
+	'''
+	Update the locations of 3D sounds to match their objects. Should be called
+	once per logic tick.
+	'''
+	def _update():
+		for h in list(_handles):
+			if not h.handle.status:
+				_handles.remove(h)
+				continue
+		for h3d in list(_localisable_handles):
+			# Ignore sounds that have stopped.
+			if h3d.ob.invalid or not h3d.handle.status:
+				_localisable_handles.remove(h3d)
+				continue
+
+			h3d.handle.location = h3d.ob.worldPosition
+
+	dev = aud.device()
+	dev.lock()
+	try:
+		_update()
+	finally:
+		dev.unlock()
