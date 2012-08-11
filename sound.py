@@ -315,26 +315,32 @@ class _SingleSource:
 class Localise:
 	'''Gives a sample a location in 3D space.'''
 	def __init__(self, ob, distmin=10.0, distmax=1000000.0, attenuation=10.0):
-		self.owner = ob
+		self.ob = ob
 		self.distmin = distmin
 		self.distmax = distmax
 		self.attenuation = attenuation
-		self._first = True
+		self._handleid = None
 
-	def apply(self, sample, handle):
-		if self.owner.invalid:
+	def prepare(self, sample):
+		try:
+			self.loc = self.ob.worldPosition
+		except SystemError:
 			sample.stop()
-			return
+
+	@aud_lock
+	def apply(self, sample, handle):
 		if not handle.status:
 			return
 
-		handle.location = self.owner.worldPosition
-		if self._first:
+		handle.location = self.loc
+
+		if self._handleid != id(handle):
+			# This is the first time this particular handle has been localised.
 			handle.relative = False
 			handle.distance_reference = self.distmin
 			handle.distance_maximum = self.distmax
 			handle.attenuation = self.attenuation
-			self._first = False
+			self._handleid = id(handle)
 
 class FadeOut:
 	'''Causes a sample to fade out and stop. Then, it removes itself.'''
@@ -342,42 +348,61 @@ class FadeOut:
 		self.rate = rate
 		self.multiplier = 1.0
 
+	def prepare(self, sample):
+		self.multiplier -= self.rate
+
+	@aud_lock
 	def apply(self, sample, handle):
 		if not handle.status:
 			return
 
 		# A multiplier is used to allow this to work together with other volume
 		# effects.
-		if self.multiplier - self.rate <= 0.0:
+		if self.multiplier <= 0.0:
 			sample.stop()
 			sample.remove_effect(self)
 		else:
-			self.multiplier -= self.rate
 			handle.volume *= self.multiplier
 
 class FadeByLinV:
 	'''Plays a sound loudly when the object is moving fast.'''
 	def __init__(self, ob, scale=0.05):
-		self.owner = ob
+		self.ob = ob
 		self.scale = scale
 
+	def prepare(self, sample):
+		try:
+			speed = self.ob.worldAngularVelocity.magnitude
+		except SystemError:
+			sample.stop()
+			return
+		self.multiplier = bxt.bmath.approach_one(speed, self.scale)
+
+	@aud_lock
 	def apply(self, sample, handle):
 		if not handle.status:
 			return
 
 		# A multiplier is used to allow this to work together with other volume
 		# effects.
-		speed = self.owner.worldLinearVelocity.magnitude
-		multiplier = bxt.bmath.approach_one(speed, self.scale)
-		handle.volume *= multiplier
+		handle.volume *= self.multiplier
 
 class PitchByAngV:
 	'''Plays a sound loudly when the object is moving fast.'''
 	def __init__(self, ob, scale=0.05, pitchmin=0.8, pitchmax=1.2):
-		self.owner = ob
+		self.ob = ob
 		self.scale = scale
 		self.pitchmin = pitchmin
 		self.pitchmax = pitchmax
+
+	def prepare(self, sample):
+		try:
+			speed = self.ob.worldAngularVelocity.magnitude
+		except SystemError:
+			sample.stop()
+			return
+		factor = bxt.bmath.approach_one(speed, self.scale)
+		self.multiplier = bxt.bmath.lerp(self.pitchmin, self.pitchmax, factor)
 
 	def apply(self, sample, handle):
 		if not handle.status:
@@ -385,10 +410,7 @@ class PitchByAngV:
 
 		# A multiplier is used to allow this to work together with other volume
 		# effects.
-		speed = self.owner.worldAngularVelocity.magnitude
-		factor = bxt.bmath.approach_one(speed, self.scale)
-		multiplier = bxt.bmath.lerp(self.pitchmin, self.pitchmax, factor)
-		handle.pitch *= multiplier
+		handle.pitch *= self.multiplier
 
 
 class Sample:
@@ -444,8 +466,18 @@ class Sample:
 	def playing(self):
 		return self._handle is not None and self._handle.status
 
-	@aud_lock
 	def update(self):
+		# Run effects for this frame.
+		# NOTE: Some preparation is done outside of the lock; this is to
+		# minimise the time spent holding the lock, which should reduce
+		# clicking.
+		effects = self._effects.copy()
+		for effect in effects:
+			effect.prepare(self)
+		self._update(effects)
+
+	@aud_lock
+	def _update(self, effects):
 		if not self.playing:
 			return
 
@@ -454,7 +486,7 @@ class Sample:
 		# when finished.
 		handle.volume = self.volume
 		handle.pitch = self.pitch
-		for effect in self._effects.copy():
+		for effect in effects:
 			effect.apply(self, handle)
 
 	def play(self):
@@ -506,7 +538,6 @@ class Sample:
 		return "Sample({})".format(self.source)
 
 
-@aud_lock
 def update():
 	'''
 	Process the sounds that are currently playing, e.g. update 3D positions.
@@ -516,4 +547,3 @@ def update():
 			_playing_samples.discard(s)
 			continue
 		s.update()
-#	print(len(_playing_samples))
