@@ -16,6 +16,7 @@
 #
 
 from collections import namedtuple
+from functools import wraps
 
 import aud
 import mathutils
@@ -24,6 +25,36 @@ import bge
 import bxt
 
 MIN_VOLUME = 0.001
+
+
+
+_aud_locked = False
+def aud_lock(f):
+	'''
+	Function decorator.
+	Locks the audio device before a function call, and unlocks it afterwards -
+	unless it was already locked, in which case the function is just called as
+	normal.
+	'''
+	@wraps(f)
+	def _aud_lock(*args, **kwargs):
+		global _aud_locked
+
+		if _aud_locked:
+			return f(*args, **kwargs)
+
+		else:
+			_aud_locked = True
+			dev = aud.device()
+			dev.lock()
+			try:
+				return f(*args, **kwargs)
+			finally:
+				dev.unlock()
+				_aud_locked = False
+
+	return _aud_lock
+
 
 #
 # A mapping from sound name to actuator index. This lets play_with_random_pitch
@@ -230,100 +261,189 @@ def modulate_by_angv(c):
 	angV = mathutils.Vector(o.getAngularVelocity(False))
 	_modulate(angV.magnitude, c)
 
-# Warnings! Kept in a set so they're only printed once.
-_warnings_printed = set()
-
 # These are sounds that have a location. We manage their location manually to
 # work around this bug:
 # http://projects.blender.org/tracker/?func=detail&atid=306&aid=32096&group_id=9
-_handles= []
-HandleBXT = namedtuple('HandleBXT', ['ident', 'handle', 'source'])
-_localisable_handles = []
-Handle3D = namedtuple('Handle3D', ['ob', 'handle', 'source'])
+_playing_samples = set()
 
-def play_sample(filename, volume=1.0, pitchmin=1.0, pitchmax=1.0,
-			ob=None, distmin=10.0, distmax=1000000.0, loop=False):
-	'''Play a sound file.'''
+#class _Volume:
+#	def __init__(self, value):
+#		self.value = value
+#
+#	def transform(self, factory):
+#		return factory.volume(self.value)
+#
+#class _PitchRange:
+#	def __init__(self, pitchmin, pitchmax):
+#		self.pitchmin = pitchmin
+#		self.pitchmax = pitchmax
+#
+#	def transform(self, factory):
+#		pitch = bxt.bmath.lerp(self.pitchmin, self.pitchmax,
+#				bge.logic.getRandomFloat())
+#		return factory.pitch(pitch)
+#
+#class _Loop:
+#	def __init__(self, times=-1):
+#		self.times = times
+#
+#	def transform(self, factory):
+#		return factory.loop(self.times)
 
-	# Don't play sound if it's already playing.
-	# TODO: Make this better: it should:
-	#  - Only play sound if it woulnd't bump off a higher-priority sound.
-	#  - Be able to play multiple copies of a sound if they are tied to
-	#    different objects or something.
-	for h in _handles:
-		if h.ident == filename:
+class _MultiSource:
+	def __init__(self, *filenames):
+		self.filenames = filenames
+
+	def get(self):
+		i = int(len(self.filenames) * bge.logic.getRandomFloat())
+		return aud.Factory(bge.logic.expandPath(self.filenames[i]))
+
+	def __repr__(self):
+		return repr(self.filenames)
+
+class _SingleSource:
+	def __init__(self, filename):
+		self.filename = filename
+
+	def get(self):
+		return aud.Factory(bge.logic.expandPath(self.filename))
+
+	def __repr__(self):
+		return repr(self.filename)
+
+
+class Sample:
+	'''
+	A sound sample. Similar to aud.Handle, but it can be retained and replayed
+	without wasting resources when it is stopped.
+
+	A Sample can only play one instance of its sound at a time. If you want to
+	play a second instance, call Sample.copy().
+	'''
+
+	def __init__(self, *filenames):
+		if len(filenames) == 0:
+			self.source = None
+		elif len(filenames) == 1:
+			self.source = _SingleSource(filenames[0])
+		else:
+			self.source = _MultiSource(*filenames)
+
+		# Universal properties
+		self.volume = 1.0
+		self.pitchmin = 1.0
+		self.pitchmax = 1.0
+		self.loop = False
+
+		# Properties for 3D audio
+		self.owner = None
+		self.distmin = 10.0
+		self.distmax = 1000000.0
+		self.attenuation = 10.0
+
+		# Internal state stuff
+		self._handle = None
+
+	def copy(self):
+		other = Sample()
+		other.source = self.source
+
+		other.volume = self.volume
+		other.pitchmin = self.pitchmin
+		other.pitchmax = self.pitchmax
+		other.loop = self.loop
+
+		other.owner = self.owner
+		other.distmin = self.distmin
+		other.distmax = self.distmax
+		other.attenuation = self.attenuation
+
+		# Don't copy handle.
+		return other
+
+	@property
+	def playing(self):
+		return self._handle is not None and self._handle.status
+
+	@aud_lock
+	def update(self):
+		if not self.playing:
 			return
 
-	try:
-		dev = aud.device()
-		path = bge.logic.expandPath(filename)
-		sample = aud.Factory(path)
+		# Update 3D sounds
+		if self.owner is None:
+			return
+		if self.owner.invalid:
+			self.stop()
+			return
 
-		if volume != 1.0:
-			sample = sample.volume(volume)
+		self._handle.location = self.owner.worldPosition
 
-		if pitchmax != 1.0 or pitchmin != 1.0:
-			pitch = bxt.bmath.lerp(pitchmin, pitchmax,
-					bge.logic.getRandomFloat())
-			sample = sample.pitch(pitch)
+	def play(self):
+		'''
+		Play the sound sample - unless it's already playing, in which case
+		nothing happens.
+		'''
+		# Don't play sound if it's already playing.
+		# TODO: Make this better: it should:
+		#  - Only play sound if it woulnd't bump off a higher-priority sound.
+		if self.playing:
+			return
 
-		if loop:
-			sample = sample.loop(-1)
-
-		#print("Playing %s at %s" % (filename, ob))
-		handle = dev.play(sample)
-		_handles.append(HandleBXT(filename, handle, filename))
-
-		if ob is not None:
-			handle.location = ob.worldPosition
-			handle.relative = False
-			handle.distance_reference = distmin
-			handle.distance_maximum = distmax
-			handle.attenuation = 10.0
-			_localisable_handles.append(Handle3D(ob, handle, filename))
-
-	except aud.error as e:
-		if not filename in _warnings_printed:
-			print("Error playing sound file %s" % filename)
+		try:
+			factory = self._construct_factory(self.source.get())
+			self._play(factory)
+		except aud.error as e:
+			print("Error playing sound" % self)
 			print(e)
-		_warnings_printed.add(filename)
 
-def play_random_sample(filenames, volume=1.0, pitchmin=1.0, pitchmax=1.0,
-			ob=None, distmin=10.0, distmax=1000000.0):
-	'''Play a random sound from a set of files.'''
-	i = int(len(filenames) * bge.logic.getRandomFloat())
-	play_sample(filenames[i], volume=volume, pitchmin=pitchmin,
-			pitchmax=pitchmax, ob=ob, distmin=distmin, distmax=distmax)
-
-def stop(identifier):
-	# Don't need to copy list because iteration stops after removal.
-	for h in _handles:
-		if h.ident == identifier:
-			h.handle.stop()
-			_handles.remove(h)
+	def stop(self):
+		if self._handle is None:
 			return
+		self._handle.stop()
+		self._handle = None
 
+	def _construct_factory(self, factory):
+		if self.volume != 1.0:
+			factory = factory.volume(self.volume)
+
+		if self.pitchmax != 1.0 or self.pitchmin != 1.0:
+			pitch = bxt.bmath.lerp(self.pitchmin, self.pitchmax,
+					bge.logic.getRandomFloat())
+			factory = factory.pitch(pitch)
+
+		if self.loop:
+			factory = factory.loop(-1)
+
+		return factory
+
+	@aud_lock
+	def _play(self, factory):
+		dev = aud.device()
+		self._handle = handle = dev.play(factory)
+
+		_playing_samples.add(self)
+
+		# Initialise 3D stuff (this is why the lock is required)
+		if self.owner is not None:
+			handle.location = self.owner.worldPosition
+			handle.relative = False
+			handle.distance_reference = self.distmin
+			handle.distance_maximum = self.distmax
+			handle.attenuation = self.attenuation
+
+	def __repr__(self):
+		return "Sample({})".format(self.source)
+
+
+@aud_lock
 def update():
 	'''
-	Update the locations of 3D sounds to match their objects. Should be called
-	once per logic tick.
+	Process the sounds that are currently playing, e.g. update 3D positions.
 	'''
-	def _update():
-		for h in list(_handles):
-			if not h.handle.status:
-				_handles.remove(h)
-				continue
-		for h3d in list(_localisable_handles):
-			# Ignore sounds that have stopped.
-			if h3d.ob.invalid or not h3d.handle.status:
-				_localisable_handles.remove(h3d)
-				continue
-
-			h3d.handle.location = h3d.ob.worldPosition
-
-	dev = aud.device()
-	dev.lock()
-	try:
-		_update()
-	finally:
-		dev.unlock()
+	for s in _playing_samples.copy():
+		if not s.playing:
+			_playing_samples.discard(s)
+			continue
+		s.update()
+#	print(len(_playing_samples))
