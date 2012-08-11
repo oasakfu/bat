@@ -312,6 +312,85 @@ class _SingleSource:
 		return repr(self.filename)
 
 
+class Localise:
+	'''Gives a sample a location in 3D space.'''
+	def __init__(self, ob, distmin=10.0, distmax=1000000.0, attenuation=10.0):
+		self.owner = ob
+		self.distmin = distmin
+		self.distmax = distmax
+		self.attenuation = attenuation
+		self._first = True
+
+	def apply(self, sample, handle):
+		if self.owner.invalid:
+			sample.stop()
+			return
+		if not handle.status:
+			return
+
+		handle.location = self.owner.worldPosition
+		if self._first:
+			handle.relative = False
+			handle.distance_reference = self.distmin
+			handle.distance_maximum = self.distmax
+			handle.attenuation = self.attenuation
+			self._first = False
+
+class FadeOut:
+	'''Causes a sample to fade out and stop. Then, it removes itself.'''
+	def __init__(self, rate=0.05):
+		self.rate = rate
+		self.multiplier = 1.0
+
+	def apply(self, sample, handle):
+		if not handle.status:
+			return
+
+		# A multiplier is used to allow this to work together with other volume
+		# effects.
+		if self.multiplier - self.rate <= 0.0:
+			sample.stop()
+			sample.remove_effect(self)
+		else:
+			self.multiplier -= self.rate
+			handle.volume *= self.multiplier
+
+class FadeByLinV:
+	'''Plays a sound loudly when the object is moving fast.'''
+	def __init__(self, ob, scale=0.05):
+		self.owner = ob
+		self.scale = scale
+
+	def apply(self, sample, handle):
+		if not handle.status:
+			return
+
+		# A multiplier is used to allow this to work together with other volume
+		# effects.
+		speed = self.owner.worldLinearVelocity.magnitude
+		multiplier = bxt.bmath.approach_one(speed, self.scale)
+		handle.volume *= multiplier
+
+class PitchByAngV:
+	'''Plays a sound loudly when the object is moving fast.'''
+	def __init__(self, ob, scale=0.05, pitchmin=0.8, pitchmax=1.2):
+		self.owner = ob
+		self.scale = scale
+		self.pitchmin = pitchmin
+		self.pitchmax = pitchmax
+
+	def apply(self, sample, handle):
+		if not handle.status:
+			return
+
+		# A multiplier is used to allow this to work together with other volume
+		# effects.
+		speed = self.owner.worldAngularVelocity.magnitude
+		factor = bxt.bmath.approach_one(speed, self.scale)
+		multiplier = bxt.bmath.lerp(self.pitchmin, self.pitchmax, factor)
+		handle.pitch *= multiplier
+
+
 class Sample:
 	'''
 	A sound sample. Similar to aud.Handle, but it can be retained and replayed
@@ -333,15 +412,12 @@ class Sample:
 		self.volume = 1.0
 		self.pitchmin = 1.0
 		self.pitchmax = 1.0
+		self.pitch = 1.0
 		self.loop = False
 
-		# Properties for 3D audio
-		self.owner = None
-		self.distmin = 10.0
-		self.distmax = 1000000.0
-		self.attenuation = 10.0
-
 		# Internal state stuff
+
+		self._effects = set()
 		self._handle = None
 
 	def copy(self):
@@ -353,13 +429,16 @@ class Sample:
 		other.pitchmax = self.pitchmax
 		other.loop = self.loop
 
-		other.owner = self.owner
-		other.distmin = self.distmin
-		other.distmax = self.distmax
-		other.attenuation = self.attenuation
+		other._effects = self._effects.copy()
 
 		# Don't copy handle.
 		return other
+
+	def add_effect(self, effect):
+		self._effects.add(effect)
+
+	def remove_effect(self, effect):
+		self._effects.discard(effect)
 
 	@property
 	def playing(self):
@@ -370,14 +449,13 @@ class Sample:
 		if not self.playing:
 			return
 
-		# Update 3D sounds
-		if self.owner is None:
-			return
-		if self.owner.invalid:
-			self.stop()
-			return
-
-		self._handle.location = self.owner.worldPosition
+		handle = self._handle
+		# Copy the set of effects, because some of them may remove themselves
+		# when finished.
+		handle.volume = self.volume
+		handle.pitch = self.pitch
+		for effect in self._effects.copy():
+			effect.apply(self, handle)
 
 	def play(self):
 		'''
@@ -408,9 +486,9 @@ class Sample:
 			factory = factory.volume(self.volume)
 
 		if self.pitchmax != 1.0 or self.pitchmin != 1.0:
-			pitch = bxt.bmath.lerp(self.pitchmin, self.pitchmax,
+			self.pitch = bxt.bmath.lerp(self.pitchmin, self.pitchmax,
 					bge.logic.getRandomFloat())
-			factory = factory.pitch(pitch)
+			factory = factory.pitch(self.pitch)
 
 		if self.loop:
 			factory = factory.loop(-1)
@@ -420,17 +498,9 @@ class Sample:
 	@aud_lock
 	def _play(self, factory):
 		dev = aud.device()
-		self._handle = handle = dev.play(factory)
-
+		self._handle = dev.play(factory)
 		_playing_samples.add(self)
-
-		# Initialise 3D stuff (this is why the lock is required)
-		if self.owner is not None:
-			handle.location = self.owner.worldPosition
-			handle.relative = False
-			handle.distance_reference = self.distmin
-			handle.distance_maximum = self.distmax
-			handle.attenuation = self.attenuation
+		self.update()
 
 	def __repr__(self):
 		return "Sample({})".format(self.source)
