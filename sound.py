@@ -124,6 +124,7 @@ class Jukebox(metaclass=bxt.types.Singleton):
 		if track is not None:
 			track.play()
 		self.current_track = track
+		print(self.current_track)
 
 	def stop(self, ob_or_sample):
 		for track in self.stack:
@@ -159,6 +160,9 @@ class Track:
 		# Fade out. When the volume reaches zero, the sound will stop.
 		self.fader.rate = -Track.FADE_RATE
 		self.sample.add_effect(self.fader)
+
+	def __repr__(self):
+		return "Track({})".format(repr(self.sample))
 
 class Source(metaclass=abc.ABCMeta):
 	'''A factory for sound factories.'''
