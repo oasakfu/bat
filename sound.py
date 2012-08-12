@@ -15,17 +15,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from collections import namedtuple
 from functools import wraps
+import abc
+import itertools
 
 import aud
-import mathutils
 import bge
 
 import bxt
-
-MIN_VOLUME = 0.001
-
 
 
 _aud_locked = False
@@ -55,217 +52,10 @@ def aud_lock(f):
 
 	return _aud_lock
 
-
 #
-# A mapping from sound name to actuator index. This lets play_with_random_pitch
-# cycle through different samples for a named sound.
+# The following could be used instead of the code in Sample._construct_factory,
+# to make it more extensible. It's not clear if it's worth it, though.
 #
-_SoundActuatorIndices = {}
-_volume_map = {}
-
-def set_volume(object_name, volume):
-	'''
-	Sets the volume for a particular object. If that object later calls one the
-	methods in this module to play a sound, the volume specified here will be
-	used.
-	'''
-	_volume_map[object_name] = volume
-
-@bxt.utils.all_sensors_positive
-@bxt.utils.controller
-def play_with_random_pitch(c):
-	'''
-	Play a sound with a random pitch. The pitch range is defined by the
-	controller's owner using the properties PitchMin and PitchMax.
-
-	Sensors:
-	<one>:  If positive and triggered, a sound will be played.
-
-	Actuators:
-	<one+>: Each will be played in turn.
-
-	Controller properties:
-	PitchMin: The minimum pitch (float).
-	PitchMax: The maximum pitch (float).
-	SoundID:  The name of the sound (any type). This lets different objects with
-	          the same SoundID coordinate the sequence that the sounds are
-	          played in. Note that if controllers with the same SoundID have
-	          different numbers of actuators, the additional actuators are not
-	          guaranteed to play.
-	'''
-	o = c.owner
-
-	try:
-		o['PitchMin']
-	except KeyError:
-		o['PitchMin'] = 0.8
-	try:
-		o['PitchMax']
-	except KeyError:
-		o['PitchMax'] = 1.2
-
-	#
-	# Select an actuator.
-	#
-	i = 0
-	try:
-		i = _SoundActuatorIndices[o.name]
-	except KeyError:
-		_SoundActuatorIndices[o.name] = 0
-		i = 0
-
-	i = i % len(c.actuators)
-	a = c.actuators[i]
-	_SoundActuatorIndices[o.name] = i + 1
-
-	#
-	# Set the pitch and activate!
-	#
-	a.pitch = bxt.bmath.lerp(o['PitchMin'], o['PitchMax'], bge.logic.getRandomFloat())
-	try:
-		a.volume = _volume_map[o.name]
-	except KeyError:
-		pass
-	c.activate(a)
-
-@bxt.utils.controller
-def fade(c):
-	'''
-	Causes a sound to play a long as its inputs are active. On activation, the
-	sound fades in; on deactivation, it fades out. The fade rate is determined
-	by the owner's SoundFadeFac property (0.0 <= SoundFadeFac <= 1.0).
-
-	Sensors:
-	sAlways:  Fires every frame to provide the fading effect.
-	<one+>:   If any are positive, the sound will turn on. Otherwise the sound
-	          will turn off.
-
-	Actuators:
-	<one>:    A sound actuator.
-
-	Controller properties:
-	VolumeMult:    The maximum volume (float).
-	SoundFadeFac:  The response factor for the volume (float).
-	'''
-	_fade(c, 1.0)
-
-def _fade(c, maxVolume):
-	a = c.actuators[0]
-	o = a.owner
-
-	# Wait a few frames before allowing sound to be played. This is a filthy
-	# hack to prevent objects from being noisy when they spawn - i.e. when they
-	# tend to have a bit of initial velocity.
-	try:
-		if o['SoundWait'] > 0:
-			o['SoundWait'] -= 1
-			return
-	except:
-		o['SoundWait'] = 20
-		return
-
-	try:
-		o['SoundFadeFac']
-	except KeyError:
-		o['SoundFadeFac'] = 0.05
-
-	if o.name in _volume_map:
-		maxVolume *= _volume_map[o.name]
-
-	targetVolume = 0.0
-	for s in c.sensors:
-		if s.name == "sAlways":
-			continue
-		if s.positive:
-			targetVolume = maxVolume
-			break
-
-	a.volume = bxt.bmath.lerp(a.volume, targetVolume, o['SoundFadeFac'])
-	if a.volume > MIN_VOLUME:
-		c.activate(a)
-	else:
-		c.deactivate(a)
-
-def _modulate(speed, c):
-	o = c.owner
-
-	try:
-		o['SoundModScale']
-	except KeyError:
-		o['SoundModScale'] = 0.01
-	try:
-		o['PitchMin']
-	except KeyError:
-		o['PitchMin'] = 0.8
-	try:
-		o['PitchMax']
-	except KeyError:
-		o['PitchMax'] = 1.2
-
-	factor = 0.0
-	if speed > 0.0:
-		factor = bxt.bmath.approach_one(speed, o['SoundModScale'])
-
-	a = c.actuators[0]
-	a.pitch = bxt.bmath.lerp(o['PitchMin'], o['PitchMax'], factor)
-
-	_fade(c, factor)
-
-@bxt.utils.controller
-def modulate_by_linv(c):
-	'''
-	Change the pitch and volume of the sound depending on the angular velocity
-	of the controller's owner.
-
-	Sensors:
-	sAlways:  Fires every frame to provide the fading effect.
-	<others>: At least one other. If any are positive, the sound will turn on.
-	          Otherwise the sound will turn off.
-
-	Actuators:
-	<one>:    A sound actuator.
-
-	Controller properties:
-	SoundModScale: The rate at which the pitch increases (float).
-	PitchMin:      The minimum pitch (when speed = 0) (float).
-	PitchMax:      The maximum pitch (as speed approaches infinity) (float).
-	VolumeMult:    The maximum volume (as speed approaches infinity) (float).
-	SoundFadeFac:  The response factor for the volume (float).
-	'''
-	o = c.owner
-	linV = mathutils.Vector(o.getLinearVelocity(False))
-	_modulate(linV.magnitude, c)
-
-@bxt.utils.controller
-def modulate_by_angv(c):
-	'''
-	Change the pitch and volume of the sound depending on the angular velocity
-	of the controller's owner.
-
-	Sensors:
-	sAlways:  Fires every frame to provide the fading effect.
-	<others>: At least one other. If any are positive, the sound will turn on.
-	          Otherwise the sound will turn off.
-
-	Actuators:
-	<one>:    A sound actuator.
-
-	Controller properties:
-	SoundModScale: The rate at which the pitch increases (float).
-	PitchMin:      The minimum pitch (when speed = 0) (float).
-	PitchMax:      The maximum pitch (as speed approaches infinity) (float).
-	VolumeMult:    The maximum volume (as speed approaches infinity) (float).
-	SoundFadeFac:  The response factor for the volume (float).
-	'''
-	o = c.owner
-	angV = mathutils.Vector(o.getAngularVelocity(False))
-	_modulate(angV.magnitude, c)
-
-# These are sounds that have a location. We manage their location manually to
-# work around this bug:
-# http://projects.blender.org/tracker/?func=detail&atid=306&aid=32096&group_id=9
-_playing_samples = set()
-
 #class _Volume:
 #	def __init__(self, value):
 #		self.value = value
@@ -290,7 +80,30 @@ _playing_samples = set()
 #	def transform(self, factory):
 #		return factory.loop(self.times)
 
-class _MultiSource:
+
+class Source(metaclass=abc.ABCMeta):
+	'''A factory for sound factories.'''
+
+	@abc.abstractmethod
+	def get(self):
+		'''@return: an aud.Factory instance.'''
+
+class SingleSource(Source):
+	'''Creates a Factory for a single file.'''
+	def __init__(self, filename):
+		self.filename = filename
+
+	def get(self):
+		return aud.Factory(bge.logic.expandPath(self.filename))
+
+	def __repr__(self):
+		return repr(self.filename)
+
+class MultiSource(Source):
+	'''
+	Stores a collection of file names; each time get() is called, a Factory is
+	constructed for one of the files (chosen at random).
+	'''
 	def __init__(self, *filenames):
 		self.filenames = filenames
 
@@ -301,19 +114,75 @@ class _MultiSource:
 	def __repr__(self):
 		return repr(self.filenames)
 
-class _SingleSource:
-	def __init__(self, filename):
-		self.filename = filename
+class ChainMusicSource(Source):
+	'''Plays two sounds back-to-back; the second sound will loop.'''
+	def __init__(self, introfile, loopfile):
+		self.introfile = introfile
+		self.loopfile = loopfile
 
 	def get(self):
-		return aud.Factory(bge.logic.expandPath(self.filename))
+		intro = aud.Factory(bge.logic.expandPath(self.introfile))
+		loop = aud.Factory(bge.logic.expandPath(self.loopfile)).loop(-1)
+		return intro.join(loop)
 
-	def __repr__(self):
-		return repr(self.filename)
+class PermuteMusicSource(Source):
+	'''
+	Plays a series of sounds in all possible orders. The entire sequence will
+	loop. E.g. 3 files each 20s long will play for
+
+		3! * (3 * 20) = 6 * 60 = 360s
+
+	before repeating.
+	'''
+	def __init__(self, *loopfiles):
+		self.loopfiles = loopfiles
+
+	def get(self):
+		segments = []
+		for filepath in self.loopfiles:
+			path = bge.logic.expandPath(filepath)
+			segments.append(aud.Factory(path))
+
+		perms = []
+		for p in itertools.permutations(segments):
+			perms.append(self._concatenate_factories(p))
+		track = self._concatenate_factories(perms)
+
+		return track.loop(-1)
+
+	def _concatenate_factories(self, factories):
+		combined = None
+		for factory in factories:
+			if combined is None:
+				combined = factory
+			else:
+				combined = combined.join(factory)
+		return combined
 
 
-class Localise:
+class Effect(metaclass=abc.ABCMeta):
+	'''Effects are run while a sound plays.'''
+
+	@abc.abstractmethod
+	def prepare(self, sample):
+		'''
+		Do any preparation required for this frame. You should not manipulate
+		any sound handles here; do that in apply().
+		'''
+
+	@abc.abstractmethod
+	def apply(self, sample, handle):
+		'''
+		Modify the playing sound for this frame. Do not do any intensive tasks
+		in here, or the sound may "click". Long calculations (such as vector
+		math) should be done in prepare().
+		'''
+
+class Localise(Effect):
 	'''Gives a sample a location in 3D space.'''
+	# These are sounds that have a location. We manage their location manually
+	# to work around this bug:
+	# http://projects.blender.org/tracker/?func=detail&atid=306&aid=32096&group_id=9
 	def __init__(self, ob, distmin=10.0, distmax=1000000.0, attenuation=10.0):
 		self.ob = ob
 		self.distmin = distmin
@@ -342,7 +211,7 @@ class Localise:
 			handle.attenuation = self.attenuation
 			self._handleid = id(handle)
 
-class FadeOut:
+class FadeOut(Effect):
 	'''Causes a sample to fade out and stop. Then, it removes itself.'''
 	def __init__(self, rate=0.05):
 		self.rate = rate
@@ -364,7 +233,7 @@ class FadeOut:
 		else:
 			handle.volume *= self.multiplier
 
-class FadeByLinV:
+class FadeByLinV(Effect):
 	'''Plays a sound loudly when the object is moving fast.'''
 	def __init__(self, ob, scale=0.05):
 		self.ob = ob
@@ -387,7 +256,7 @@ class FadeByLinV:
 		# effects.
 		handle.volume *= self.multiplier
 
-class PitchByAngV:
+class PitchByAngV(Effect):
 	'''Plays a sound loudly when the object is moving fast.'''
 	def __init__(self, ob, scale=0.05, pitchmin=0.8, pitchmax=1.2):
 		self.ob = ob
@@ -423,12 +292,18 @@ class Sample:
 	'''
 
 	def __init__(self, *filenames):
+		'''
+		Create a new sound sample. If multiple file names are provided, one will
+		be chosen at random each time the sample is played. If no filenames are
+		given, the source will be undefined; it may be set later by assigning
+		a Source to the Sample.source property.
+		'''
 		if len(filenames) == 0:
 			self.source = None
 		elif len(filenames) == 1:
-			self.source = _SingleSource(filenames[0])
+			self.source = SingleSource(filenames[0])
 		else:
-			self.source = _MultiSource(*filenames)
+			self.source = MultiSource(*filenames)
 
 		# Universal properties
 		self.volume = 1.0
@@ -443,6 +318,7 @@ class Sample:
 		self._handle = None
 
 	def copy(self):
+		'''Create a new Sample instance with the same settings'''
 		other = Sample()
 		other.source = self.source
 
@@ -467,25 +343,30 @@ class Sample:
 		return self._handle is not None and self._handle.status
 
 	def update(self):
-		# Run effects for this frame.
+		''''Run effects for this frame.'''
 		# NOTE: Some preparation is done outside of the lock; this is to
 		# minimise the time spent holding the lock, which should reduce
 		# clicking.
+
+		# Copy the set of effects, because some of them may remove themselves
+		# when finished.
+		self._pre_update()
+		self._update()
+
+	def _pre_update(self):
 		effects = self._effects.copy()
 		for effect in effects:
 			effect.prepare(self)
-		self._update(effects)
 
 	@aud_lock
-	def _update(self, effects):
+	def _update(self):
 		if not self.playing:
 			return
 
 		handle = self._handle
-		# Copy the set of effects, because some of them may remove themselves
-		# when finished.
 		handle.volume = self.volume
 		handle.pitch = self.pitch
+		effects = self._effects.copy()
 		for effect in effects:
 			effect.apply(self, handle)
 
@@ -502,12 +383,14 @@ class Sample:
 
 		try:
 			factory = self._construct_factory(self.source.get())
+			self._pre_update()
 			self._play(factory)
 		except aud.error as e:
 			print("Error playing sound" % self)
 			print(e)
 
 	def stop(self):
+		'''Stop playing the sound. If it is not playing, nothing happens.'''
 		if self._handle is None:
 			return
 		self._handle.stop()
@@ -532,12 +415,12 @@ class Sample:
 		dev = aud.device()
 		self._handle = dev.play(factory)
 		_playing_samples.add(self)
-		self.update()
+		self._update()
 
 	def __repr__(self):
 		return "Sample({})".format(self.source)
 
-
+_playing_samples = set()
 def update():
 	'''
 	Process the sounds that are currently playing, e.g. update 3D positions.

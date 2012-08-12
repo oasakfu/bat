@@ -15,10 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-import weakref
-
 import bge
-from bge import logic
 import mathutils
 
 import bxt.types
