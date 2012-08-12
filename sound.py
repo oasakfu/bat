@@ -16,6 +16,7 @@
 #
 
 from functools import wraps
+from collections import namedtuple
 import abc
 import itertools
 
@@ -41,10 +42,10 @@ def aud_lock(f):
 			return f(*args, **kwargs)
 
 		else:
-			_aud_locked = True
 			dev = aud.device()
 			dev.lock()
 			try:
+				_aud_locked = True
 				return f(*args, **kwargs)
 			finally:
 				dev.unlock()
@@ -52,34 +53,112 @@ def aud_lock(f):
 
 	return _aud_lock
 
-#
-# The following could be used instead of the code in Sample._construct_factory,
-# to make it more extensible. It's not clear if it's worth it, though.
-#
-#class _Volume:
-#	def __init__(self, value):
-#		self.value = value
-#
-#	def transform(self, factory):
-#		return factory.volume(self.value)
-#
-#class _PitchRange:
-#	def __init__(self, pitchmin, pitchmax):
-#		self.pitchmin = pitchmin
-#		self.pitchmax = pitchmax
-#
-#	def transform(self, factory):
-#		pitch = bxt.bmath.lerp(self.pitchmin, self.pitchmax,
-#				bge.logic.getRandomFloat())
-#		return factory.pitch(pitch)
-#
-#class _Loop:
-#	def __init__(self, times=-1):
-#		self.times = times
-#
-#	def transform(self, factory):
-#		return factory.loop(self.times)
 
+class Jukebox(metaclass=bxt.types.Singleton):
+	'''
+	Plays music. This uses a stack of tracks to organise a playlist. Typically,
+	this would be used to have some level-wide music playing, and replace it
+	from time to time with other music when some event happens (e.g. when a
+	character enters a locality). For example:
+
+		# Start playing level music
+		bxt.sound.Jukebox().play_files(level_empty, 0, '//background_music.ogg')
+		...
+		# Enter a locality
+		bxt.sound.Jukebox().play_files(house, 0, '//background_music.ogg')
+		...
+		# Return to main level music
+		bxt.sound.Jukebox().stop(house)
+
+	Notice that both of these tracks have a priority of 0, but the second will
+	still override the first. If the first had had a priority of 1, the second
+	track would not have started. For example:
+
+		# Start playing high-priority music
+		bxt.sound.Jukebox().play_files(level_empty, 1, '//first.ogg')
+		...
+		# Enqueue low-priority music
+		bxt.sound.Jukebox().play_files(house, 0, '//second.ogg')
+		...
+		# second.ogg will start now.
+		bxt.sound.Jukebox().stop(level_empty)
+	'''
+
+	def __init__(self):
+		self.stack = bxt.types.SafePriorityStack()
+		self.current_track = None
+		self.discarded_tracks = []
+
+	def play_sample(self, sample, ob, priority):
+		track = Track(sample, ob)
+		self.stack.push(track, priority)
+		self.update()
+
+	def play_files(self, ob, priority, *files, introfile=None, volume=1.0):
+		sample = Sample()
+		sample.source = ChainMusicSource(*files, introfile=introfile)
+		sample.volume = volume
+		# No need to loop: ChainMusicSource does that already.
+		self.play_sample(sample, ob, priority)
+		return sample
+
+	def play_permutation(self, ob, priority, *files, introfile=None, volume=1.0):
+		sample = Sample()
+		sample.source = PermuteMusicSource(*files, introfile=introfile)
+		sample.volume = volume
+		# No need to loop: PermuteMusicSource does that already.
+		self.play_sample(sample, ob, priority)
+		return sample
+
+	def update(self):
+		if len(self.stack) == 0:
+			track = None
+		else:
+			track = self.stack.top()
+
+		if track == self.current_track:
+			return
+
+		if self.current_track is not None:
+			self.current_track.stop()
+		if track is not None:
+			track.play()
+		self.current_track = track
+
+	def stop(self, ob_or_sample):
+		for track in self.stack:
+			if track.ob is ob_or_sample or track.sample is ob_or_sample:
+				self.stack.discard(track)
+				self.update()
+				return
+
+class Track:
+	FADE_RATE = 0.002
+
+	def __init__(self, sample, ob):
+		self.sample = sample
+		self.ob = ob
+		self.fader = Fader(Track.FADE_RATE)
+
+	@property
+	def invalid(self):
+		return self.ob.invalid
+
+	@property
+	def playing(self):
+		return self.sample.playing
+
+	def play(self):
+		# Add the fader (fade-in mode). Even if it was added before, it won't be
+		# counted twice.
+		self.fader.rate = Track.FADE_RATE
+		self.sample.add_effect(self.fader)
+		self.sample.play()
+
+	def stop(self):
+		# Fade out. When the volume reaches zero, the sound will stop.
+		self.fader.rate = -Track.FADE_RATE
+		self.sample.add_effect(self.fader)
 
 class Source(metaclass=abc.ABCMeta):
 	'''A factory for sound factories.'''
@@ -116,39 +195,25 @@ class MultiSource(Source):
 
 class ChainMusicSource(Source):
 	'''Plays two sounds back-to-back; the second sound will loop.'''
-	def __init__(self, introfile, loopfile):
+	def __init__(self, *loopfiles, introfile=None):
 		self.introfile = introfile
-		self.loopfile = loopfile
-
-	def get(self):
-		intro = aud.Factory(bge.logic.expandPath(self.introfile))
-		loop = aud.Factory(bge.logic.expandPath(self.loopfile)).loop(-1)
-		return intro.join(loop)
-
-class PermuteMusicSource(Source):
-	'''
-	Plays a series of sounds in all possible orders. The entire sequence will
-	loop. E.g. 3 files each 20s long will play for
-
-		3! * (3 * 20) = 6 * 60 = 360s
-
-	before repeating.
-	'''
-	def __init__(self, *loopfiles):
 		self.loopfiles = loopfiles
 
 	def get(self):
+		loop = self._get_loop()
+		if self.introfile is None:
+			return loop
+		else:
+			intro = aud.Factory(bge.logic.expandPath(self.introfile))
+			return intro.join(loop)
+
+	def _get_loop(self):
 		segments = []
 		for filepath in self.loopfiles:
 			path = bge.logic.expandPath(filepath)
 			segments.append(aud.Factory(path))
-
-		perms = []
-		for p in itertools.permutations(segments):
-			perms.append(self._concatenate_factories(p))
-		track = self._concatenate_factories(perms)
-
-		return track.loop(-1)
+		sequence = self._concatenate_factories(segments)
+		return sequence.loop(-1)
 
 	def _concatenate_factories(self, factories):
 		combined = None
@@ -158,6 +223,35 @@ class PermuteMusicSource(Source):
 			else:
 				combined = combined.join(factory)
 		return combined
+
+	def __repr__(self):
+		return "Chain({}, {}...)".format(repr(self.introfile), repr(self.loopfiles[0]))
+
+class PermuteMusicSource(ChainMusicSource):
+	'''
+	Plays a series of sounds in all possible orders. The entire sequence will
+	loop. E.g. 3 files each 20s long will play for
+
+		3! * (3 * 20) = 6 * 60 = 360s
+
+	before repeating.
+	'''
+
+	def _get_loop(self):
+		segments = []
+		for filepath in self.loopfiles:
+			path = bge.logic.expandPath(filepath)
+			segments.append(aud.Factory(path))
+
+		perms = []
+		for p in itertools.permutations(segments):
+			perms.append(self._concatenate_factories(p))
+		sequence = self._concatenate_factories(perms)
+
+		return sequence.loop(-1)
+
+	def __repr__(self):
+		return "Permute({}, {}...)".format(repr(self.introfile), repr(self.loopfiles[0]))
 
 
 class Effect(metaclass=abc.ABCMeta):
@@ -211,27 +305,42 @@ class Localise(Effect):
 			handle.attenuation = self.attenuation
 			self._handleid = id(handle)
 
-class FadeOut(Effect):
-	'''Causes a sample to fade out and stop. Then, it removes itself.'''
-	def __init__(self, rate=0.05):
+class Fader(Effect):
+	'''
+	Causes a sample change volume over time. If rate is negative, the sound will
+	fade out and then stop. If positive, it will fade in (and continue). Either
+	way, the effect will remove itself from the effect list once it has reached
+	its goal.
+	'''
+	def __init__(self, rate=-0.05):
 		self.rate = rate
-		self.multiplier = 1.0
+		if rate < 0.0:
+			self.multiplier = 1.0
+		else:
+			self.multiplier = 0.0
 
 	def prepare(self, sample):
-		self.multiplier -= self.rate
+		self.multiplier = bxt.bmath.clamp(0.0, 1.0, self.multiplier + self.rate)
+
+		# A multiplier is used to allow this to work together with other volume
+		# effects.
+		if self.rate > 0.0 and self.multiplier == 1.0:
+			# Full volume; stop fading.
+			sample.remove_effect(self)
+			return
+		elif self.rate < 0.0 and self.multiplier == 0.0:
+			# Finished fading out; stop sample and remove self.
+			sample.stop()
+			sample.remove_effect(self)
+			return
 
 	@aud_lock
 	def apply(self, sample, handle):
 		if not handle.status:
 			return
 
-		# A multiplier is used to allow this to work together with other volume
-		# effects.
-		if self.multiplier <= 0.0:
-			sample.stop()
-			sample.remove_effect(self)
-		else:
-			handle.volume *= self.multiplier
+#		print(sample, self.multiplier)
+		handle.volume *= self.multiplier
 
 class FadeByLinV(Effect):
 	'''Plays a sound loudly when the object is moving fast.'''
@@ -344,16 +453,16 @@ class Sample:
 
 	def update(self):
 		''''Run effects for this frame.'''
-		# NOTE: Some preparation is done outside of the lock; this is to
-		# minimise the time spent holding the lock, which should reduce
-		# clicking.
 
-		# Copy the set of effects, because some of them may remove themselves
-		# when finished.
 		self._pre_update()
 		self._update()
 
 	def _pre_update(self):
+		# Some preparation is done outside of the lock; this is to minimise the
+		# time spent holding the lock, which should reduce clicking.
+
+		# Copy the set of effects, because some of them may remove themselves
+		# when finished.
 		effects = self._effects.copy()
 		for effect in effects:
 			effect.prepare(self)
@@ -363,9 +472,13 @@ class Sample:
 		if not self.playing:
 			return
 
+		# Reset properties, to allow non-destructive editing.
 		handle = self._handle
 		handle.volume = self.volume
 		handle.pitch = self.pitch
+
+		# Copy the set of effects, because some of them may remove themselves
+		# when finished.
 		effects = self._effects.copy()
 		for effect in effects:
 			effect.apply(self, handle)
@@ -430,3 +543,5 @@ def update():
 			_playing_samples.discard(s)
 			continue
 		s.update()
+
+	Jukebox().update()
