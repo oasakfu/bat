@@ -219,9 +219,9 @@ def get_scene(ob):
 			return sce
 	raise ValueError("Object does not belong to any scene.")
 
-def iterate_verts(ob):
+def iterate_verts(ob, step=1):
 	'''Yields each vertex in an object's mesh.'''
 	me = ob.meshes[0]
 	for mi in range(len(me.materials)):
-		for vi in range(me.getVertexArrayLength(mi)):
+		for vi in range(0, me.getVertexArrayLength(mi), step):
 			yield me.getVertex(mi, vi)
