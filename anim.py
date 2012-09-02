@@ -162,8 +162,8 @@ def add_trigger_lt(ob, layer, frame, callback):
 	get_animator(ob).add_trigger(ob, TriggerLT(layer, frame, callback))
 
 
-def play_children_with_offset(objects, action, start, end,
-		play_mode=bge.logic.KX_ACTION_MODE_LOOP, layer=0):
+def play_children_with_offset(objects, action, start, end, layer=0,
+		play_mode=bge.logic.KX_ACTION_MODE_LOOP, speed=1.0):
 	'''
 	Plays an action on each child of an object. Each child will start on a
 	different frame, evenly spaced between 'start' and 'end'. This is especially
@@ -179,5 +179,5 @@ def play_children_with_offset(objects, action, start, end,
 		# Seems to be a bug: setActionFrame works only for one frame.
 		#child.playAction(action, start, end, layer, play_mode=play_mode)
 		#child.setActionFrame(offset_start, layer)
-		child.playAction(action, offset_start, offset_end, layer, play_mode=play_mode)
+		child.playAction(action, offset_start, offset_end, layer, play_mode=play_mode, speed=speed)
 
