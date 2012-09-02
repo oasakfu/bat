@@ -75,7 +75,7 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		self.InstanceAngle = self.InstanceAngle + ANGLE_INCREMENT
 		oMat = elr.to_matrix()
 
-		decal = bxt.utils.add_object(name, 0)
+		decal = self.scene.addObject(name, name, 200)
 		decal.worldPosition = pos
 		decal.worldOrientation = oMat
 		decal.setParent(self)
