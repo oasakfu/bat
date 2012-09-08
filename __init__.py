@@ -15,6 +15,28 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+
+import logging
+import logging.config
+
+import bge
+
+try:
+	logging.config.fileConfig(bge.logic.expandPath('//logging.conf'))
+except:
+	print("Warning: Couldn't open logging config file //logging.conf.")
+
+#
+# For debugging things like
+#    File "/usr/lib/python3.2/logging/__init__.py", line 317, in getMessage
+#        msg = msg % self.args
+#    TypeError: not all arguments converted during string formatting
+#
+#def handleError(self, record):
+#	raise
+#logging.Handler.handleError = handleError
+
+
 try:
 	#
 	# Connect to PyDev debug server if one is available. This will raise an
@@ -37,6 +59,8 @@ try:
 	pydevd.settrace(stdoutToServer=True, stderrToServer=True, suspend=False)
 except ImportError:
 	pass
+
+
 
 import bat.bats
 
