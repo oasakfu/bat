@@ -23,8 +23,6 @@ import bge
 
 import bat.utils
 
-DEBUG = False
-DEBUG_EVENT_RECIPIENTS = False
 PROFILE_BASIC = False
 PROFILE_STOCHASTIC = False
 
@@ -101,7 +99,7 @@ class Singleton(type):
 	def __init__(self, name, bases, attrs):
 		'''Runs just after the class is defined.'''
 
-		Singleton.log.debug('Creating Singleton %s' % name)
+		Singleton.log.info('Creating Singleton %s' % name)
 
 		module = sys.modules[attrs['__module__']]
 		prefix = name + '_'
@@ -830,7 +828,7 @@ class EventBus(metaclass=Singleton):
 			self._enqueue(event, delay)
 
 	def _notify(self, event):
-		EventBus.log.info("Sending", event)
+		EventBus.log.info("Sending %s", event)
 		for listener in self.listeners.copy():
 			EventBus.log.debug('\ttarget = %s', str(listener))
 			listener.on_event(event)

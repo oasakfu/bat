@@ -18,6 +18,7 @@
 import bge
 
 def print_tree(ob):
+	'''Prints object hierarchy to the console.'''
 	stack = [("", ob)]
 	while len(stack) > 0:
 		indent, ob = stack.pop()
@@ -26,6 +27,7 @@ def print_tree(ob):
 		print("%s%s: vis=%s" % (indent, ob.name, ob.visible))
 
 def print_all_trees(c):
+	'''Prints object hierarchy to the console.'''
 	if not c.sensors[0].positive:
 		return
 
