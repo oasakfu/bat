@@ -38,18 +38,9 @@ try:
 except ImportError:
 	pass
 
-from . import anim
-from . import c
-from . import bmath
-from . import render
-from . import sound
-from . import types
-from . import utils
-from . import effectors
-from . import water
-from . import debug
+import bxt.types
 
 #
 # Now that everything has been imported, create singletons.
 #
-types.EventBus()
+bxt.types.EventBus()

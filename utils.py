@@ -19,8 +19,7 @@ import sys
 
 from functools import wraps
 
-from bge import logic, types
-import weakref
+import bge
 
 class Logger:
 	'''A logger that write to stdout.'''
@@ -67,7 +66,7 @@ def replaceObject(name, original, time = 0):
 	'''Like bge.types.scene.addObject, but:
 	 - Transfers the properies of the original to the new object, and
 	 - Deletes the original after the new one is created.'''
-	scene = logic.getCurrentScene()
+	scene = bge.logic.getCurrentScene()
 	newObj = scene.addObject(name, original, time)
 	for prop in original.getPropertyNames():
 		newObj[prop] = original[prop]
@@ -82,7 +81,7 @@ def owner(f):
 	@wraps(f)
 	def f_new(owner=None):
 		if owner == None:
-			owner = logic.getCurrentController().owner
+			owner = bge.logic.getCurrentController().owner
 		elif owner.__class__.__name__ == 'SCA_PythonController':
 			owner = owner.owner
 		return f(owner)
@@ -92,7 +91,7 @@ def owner_cls(f):
 	@wraps(f)
 	def f_new(self, owner=None):
 		if owner == None:
-			owner = logic.getCurrentController().owner
+			owner = bge.logic.getCurrentController().owner
 		elif owner.__class__.__name__ == 'SCA_PythonController':
 			owner = owner.owner
 		return f(self, owner)
@@ -104,7 +103,7 @@ def controller(f):
 	@wraps(f)
 	def f_new(c=None):
 		if c == None:
-			c = logic.getCurrentController()
+			c = bge.logic.getCurrentController()
 		return f(c)
 	return f_new
 
@@ -114,7 +113,7 @@ def controller_cls(f):
 	@wraps(f)
 	def f_new(self, c=None):
 		if c == None:
-			c = logic.getCurrentController()
+			c = bge.logic.getCurrentController()
 		return f(self, c)
 	return f_new
 
@@ -168,14 +167,14 @@ def get_cursor():
 	when you need to call a method on a KX_GameObject, but you don't care which
 	object it gets called on.'''
 
-	return logic.getCurrentScene().objects['Cursor']
+	return bge.logic.getCurrentScene().objects['Cursor']
 
 def add_object(name, time = 0):
 	'''Like KX_Scene.addObject, but doesn't need an existing object to position
 	it. This uses the scene's cursor object (see get_cursor).
 	'''
 
-	scene = logic.getCurrentScene()
+	scene = bge.logic.getCurrentScene()
 	return scene.addObject(name, get_cursor(), time)
 
 def set_default_prop(ob, propName, value):
@@ -214,7 +213,7 @@ def get_scene(ob):
 	'''Get the scene that this object exists in. Sometimes this is preferred
 	over bge.logic.getCurrentScene, e.g. if this object is responding to an
 	event sent from another scene.'''
-	for sce in logic.getSceneList():
+	for sce in bge.logic.getSceneList():
 		if ob in sce.objects:
 			return sce
 	raise ValueError("Object does not belong to any scene.")

@@ -23,7 +23,10 @@ Created on 13/02/2010
 import bge
 import mathutils
 
-import bxt
+import bxt.types
+import bxt.utils
+import bxt.render
+import bxt.bmath
 
 DEBUG = False
 

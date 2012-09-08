@@ -17,6 +17,7 @@
 
 import sys
 import weakref
+import logging
 
 import bge
 
@@ -95,9 +96,12 @@ class Singleton(type):
 	decorator will be promoted to top-level functions, and can therefore be
 	called from a logic brick.'''
 
+	log = logging.getLogger(__name__ + '.Singleton')
+
 	def __init__(self, name, bases, attrs):
 		'''Runs just after the class is defined.'''
-#		print("Singleton.__init__(%s, %s, %s, %s)" % (self, name, bases, attrs))
+
+		Singleton.log.debug('Creating Singleton %s' % name)
 
 		module = sys.modules[attrs['__module__']]
 		prefix = name + '_'
@@ -181,11 +185,13 @@ class GameOb(type):
 #		print("GameOb.__call__(%s, %s)" % (self, ob))
 		if ob == None:
 			ob = bge.logic.getCurrentController().owner
+
+		orig_name = ob.name
 		if 'template' in ob:
-			old_name = ob.name
 			ob = bxt.utils.replaceObject(ob['template'], ob)
-			ob['_old_name'] = old_name
-		return super(GameOb, self).__call__(ob)
+		new_ob = super(GameOb, self).__call__(ob)
+		new_ob._orig_name = orig_name
+		return new_ob
 
 	def expose_method(self, methodName, method, module, prefix):
 		'''Expose a single method as a top-level module funciton. This must
@@ -281,11 +287,17 @@ class BX_GameObject(metaclass=GameOb):
 		return bxt.bmath.to_world(self, point)
 
 	def __repr__(self):
-		if "_old_name" in self:
-			return "%s (was %s)" % (super(BX_GameObject, self).__repr__(),
-					self["_old_name"])
+		if hasattr(self, 'invalid') and self.invalid:
+			if hasattr(self, '_orig_name'):
+				return "<Dead game object> (was %s)" % self._orig_name
+			else:
+				return "<Dead game object>"
 		else:
-			return super(BX_GameObject, self).__repr__()
+			if hasattr(self, '_orig_name') and self._orig_name != self.name:
+				return "BX_GameObject(%s) (was %s)" % (super(BX_GameObject, self).__repr__(),
+						self._orig_name)
+			else:
+				return "BX_GameObject(%s)" % self.name
 
 clsCache = {}
 def _get_class(qualifiedName):
@@ -642,6 +654,7 @@ class SafePriorityStack(SafeList):
 		self.priorities[item] = priority
 
 	def _on_automatic_removal(self, item):
+		print("Auto remove", item)
 		del self.priorities[item]
 
 	def discard(self, item):
@@ -650,6 +663,7 @@ class SafePriorityStack(SafeList):
 		Parameters:
 		key: The key that was used to insert the item.
 		'''
+		print("Discard", item)
 		try:
 			super(SafePriorityStack, self).remove(item)
 			del self.priorities[item]
@@ -739,6 +753,8 @@ class Timekeeper(metaclass=Singleton):
 class EventBus(metaclass=Singleton):
 	'''Delivers messages to listeners.'''
 
+	log = logging.getLogger(__name__ + '.EventBus')
+
 	def __init__(self):
 		self.listeners = SafeSet()
 		self.eventQueue = []
@@ -747,8 +763,7 @@ class EventBus(metaclass=Singleton):
 		self.last_frame_num = Timekeeper().get_frame_num()
 
 	def add_listener(self, listener):
-		if DEBUG:
-			print("added event listener", listener)
+		EventBus.log.info("Added event listener %s", listener)
 		self.listeners.add(listener)
 
 	def remove_listener(self, listener):
@@ -815,11 +830,9 @@ class EventBus(metaclass=Singleton):
 			self._enqueue(event, delay)
 
 	def _notify(self, event):
-		if DEBUG:
-			print('Sending', event)
+		EventBus.log.info("Sending", event)
 		for listener in self.listeners.copy():
-			if DEBUG_EVENT_RECIPIENTS:
-				print('\ttarget = %s' % str(listener))
+			EventBus.log.debug('\ttarget = %s', str(listener))
 			listener.on_event(event)
 		self.eventCache[event.message] = event
 

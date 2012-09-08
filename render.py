@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from bge import render
+import bge
 import mathutils
 
 RED   = mathutils.Vector([1.0, 0.0, 0.0, 1.0])
@@ -49,9 +49,9 @@ def draw_polyline(points, colour, cyclic=False):
 	'''Like bge.render.drawLine, but operates on any number of points.'''
 
 	for (a, b) in zip(points, points[1:]):
-		render.drawLine(a, b, colour[0:3])
+		bge.render.drawLine(a, b, colour[0:3])
 	if cyclic and len(points) > 2:
-		render.drawLine(points[0], points[-1], colour[0:3])
+		bge.render.drawLine(points[0], points[-1], colour[0:3])
 
 def parse_colour(colstr):
 	'''Parse a colour from a hexadecimal number; either "#rrggbb" or

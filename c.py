@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from bge import logic, render
+import bge
 
 import bxt.bmath
 
@@ -164,7 +164,7 @@ def spray_particle(c):
 		return
 
 	o['nParticles'] = o['nParticles'] - 1
-	speed = o['maxSpeed'] * logic.getRandomFloat()
+	speed = o['maxSpeed'] * bge.logic.getRandomFloat()
 	c.actuators['aEmit'].linearVelocity = (0.0, 0.0, speed)
 	c.activate('aEmit')
 	c.activate('aRot')
@@ -174,32 +174,9 @@ def billboard(o):
 	'''Track the camera - the Z-axis of the current object will be point towards
 	the camera.'''
 
-	_, vec, _ = o.getVectTo(logic.getCurrentScene().active_camera)
+	_, vec, _ = o.getVectTo(bge.logic.getCurrentScene().active_camera)
 	o.alignAxisToVect(vec, 2)
 
 @bxt.utils.all_sensors_positive
 def makeScreenshot():
-	render.makeScreenshot('//Screenshot#.jpg')
-
-@bxt.utils.controller
-def time_offset_children(c):
-	'''Copy the 'Frame' property to all children, incrementally adding an offset
-	as defined by the 'Offset' property.
-	'''
-
-	o = c.owner
-	a = c.actuators[0]
-	range = a.frameEnd - a.frameStart
-	increment = 0.0
-	if len(o.children) > 0:
-		increment = range / len(o.children)
-
-	offset = 0.0
-	for child in o.children:
-		frame = o['Frame'] + offset
-		frame -= a.frameStart
-		frame %= range
-		frame += a.frameStart
-		child['Frame'] = frame
-		offset += increment
-	c.activate(a)
+	bge.render.makeScreenshot('//Screenshot#.jpg')

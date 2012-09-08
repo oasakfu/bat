@@ -16,14 +16,14 @@
 #
 
 from functools import wraps
-from collections import namedtuple
 import abc
 import itertools
 
 import aud
 import bge
 
-import bxt
+import bxt.types
+import bxt.bmath
 
 
 _aud_locked = False

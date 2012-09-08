@@ -31,20 +31,21 @@ the end:
 
 import bge
 
-from . import types, utils
+import bxt.types
+import bxt.utils
 
 DEBUG = False
 
 class Trigger:
 	def __init__(self):
-		self.current_frame = types.Timekeeper().get_frame_num()
+		self.current_frame = bxt.types.Timekeeper().get_frame_num()
 
 	def is_next_frame(self):
 		'''
 		Only consider animation to be complete if the next frame has actually
 		been drawn.
 		'''
-		frame_num = types.Timekeeper().get_frame_num()
+		frame_num = bxt.types.Timekeeper().get_frame_num()
 		if self.current_frame == frame_num:
 			return False
 		self.current_frame = frame_num
@@ -103,7 +104,7 @@ class TriggerLT(Trigger):
 		else:
 			return False
 
-class Animator(types.BX_GameObject, bge.types.KX_GameObject):
+class Animator(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 	_prefix = ""
 
 	def __init__(self, old_owner):
@@ -116,7 +117,7 @@ class Animator(types.BX_GameObject, bge.types.KX_GameObject):
 			self.triggers[ob] = []
 		self.triggers[ob].append(trigger)
 
-	@types.expose
+	@bxt.types.expose
 	def run_triggers(self):
 		'''Runs all triggers for the current scene.'''
 		for ob in list(self.triggers.keys()):
@@ -144,7 +145,7 @@ def get_animator(ob):
 		scene = ob.scene
 	else:
 		# KX_GameObjects don't, so we have to search for it.
-		scene = utils.get_scene(ob)
+		scene = bxt.utils.get_scene(ob)
 	return scene.objects["BXT_Animator"]
 
 def add_trigger_end(ob, layer, callback):
