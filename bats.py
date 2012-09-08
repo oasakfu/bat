@@ -21,7 +21,7 @@ import logging
 
 import bge
 
-import bxt.utils
+import bat.utils
 
 DEBUG = False
 DEBUG_EVENT_RECIPIENTS = False
@@ -48,17 +48,17 @@ def _print_stats(c):
 				stat[1] * 1000,
 				(stat[1] / float(stat[2])) * 1000))
 def _print_stats2(c):
-	bxt.statprof.stop()
-	bxt.statprof.display()
+	bat.statprof.stop()
+	bat.statprof.display()
 print_stats = None
 if PROFILE_BASIC:
 	import time
 	prof = {}
 	print_stats = _print_stats
 elif PROFILE_STOCHASTIC:
-	import bxt.statprof
-	bxt.statprof.reset(1000)
-	bxt.statprof.start()
+	import bat.statprof
+	bat.statprof.reset(1000)
+	bat.statprof.start()
 	print_stats = _print_stats2
 class profile:
 	def __init__(self, name):
@@ -135,7 +135,7 @@ class Singleton(type):
 				return getattr(self(), methodName)()
 			except:
 				bge.logic.getCurrentScene().suspend()
-				bxt.utils._debug_leaking_objects()
+				bat.utils._debug_leaking_objects()
 				raise
 
 		method_wrapper.__name__ = '%s%s' % (prefix, methodName)
@@ -150,13 +150,13 @@ class GameOb(type):
 	   top-level functions, and can therefore be called from a logic brick.
 	For example:
 
-	class Foo(bge.types.KX_GameObject, metaclass=bxt.types.GameOb):
+	class Foo(bge.types.KX_GameObject, metaclass=bat.bats.GameOb):
 		def __init__(self, old_owner):
 			# Do not use old_owner; it will have been destroyed! Also, you don't
 			# need to call KX_GameObject.__init__.
 			pass
 
-		@bxt.types.expose
+		@bat.bats.expose
 		def update(self):
 			self.worldPosition.z += 1.0
 
@@ -188,7 +188,7 @@ class GameOb(type):
 
 		orig_name = ob.name
 		if 'template' in ob:
-			ob = bxt.utils.replaceObject(ob['template'], ob)
+			ob = bat.utils.replaceObject(ob['template'], ob)
 		new_ob = super(GameOb, self).__call__(ob)
 		new_ob._orig_name = orig_name
 		return new_ob
@@ -204,7 +204,7 @@ class GameOb(type):
 				return getattr(o, methodName)()
 			except:
 				bge.logic.getCurrentScene().suspend()
-				bxt.utils._debug_leaking_objects()
+				bat.utils._debug_leaking_objects()
 				raise
 
 		method_wrapper.__name__ = '%s%s' % (prefix, methodName)
@@ -216,25 +216,25 @@ class BX_GameObject(metaclass=GameOb):
 
 	def add_state(self, state):
 		'''Add a set of states to this object's state.'''
-		bxt.utils.add_state(self, state)
+		bat.utils.add_state(self, state)
 
 	def rem_state(self, state):
 		'''Remove a state from this object's state.'''
-		bxt.utils.rem_state(self, state)
+		bat.utils.rem_state(self, state)
 
 	def set_state(self, state):
 		'''Set the object's state. All current states will be un-set and replaced
 		with the one specified.'''
-		bxt.utils.set_state(self, state)
+		bat.utils.set_state(self, state)
 
 	def has_state(self, state):
 		'''Test whether the object is in the specified state.'''
-		return bxt.utils.has_state(self, state)
+		return bat.utils.has_state(self, state)
 
 	def set_default_prop(self, propName, defaultValue):
 		'''Sets the value of a property, but only if it doesn't already
 		exist.'''
-		bxt.utils.set_default_prop(self, propName, defaultValue)
+		bat.utils.set_default_prop(self, propName, defaultValue)
 
 	@property
 	def scene(self):
@@ -244,7 +244,7 @@ class BX_GameObject(metaclass=GameOb):
 		try:
 			return self._scene
 		except AttributeError:
-			self._scene = bxt.utils.get_scene(self)
+			self._scene = bat.utils.get_scene(self)
 			return self._scene
 
 	def find_descendant(self, propCriteria):
@@ -281,10 +281,10 @@ class BX_GameObject(metaclass=GameOb):
 		return find_recursive(self.children)
 
 	def to_local(self, point):
-		return bxt.bmath.to_local(self, point)
+		return bat.bmath.to_local(self, point)
 
 	def to_world(self, point):
-		return bxt.bmath.to_world(self, point)
+		return bat.bmath.to_world(self, point)
 
 	def __repr__(self):
 		if hasattr(self, 'invalid') and self.invalid:
@@ -313,7 +313,7 @@ def _get_class(qualifiedName):
 	clsCache[qualifiedName] = m
 	return m
 
-@bxt.utils.owner
+@bat.utils.owner
 def mutate(o):
 	'''Convert an object to its preferred class, as defined by the object's
 	Class property. All existing references to the object will be invalidated,
@@ -348,7 +348,7 @@ def weakprop(name):
 	usage:
 
 	class Baz:
-		foo = bxt.types.weakprop('foo')
+		foo = bat.bats.weakprop('foo')
 
 		def bork(self, gameObject):
 			self.foo = gameObject
@@ -780,7 +780,7 @@ class EventBus(metaclass=Singleton):
 		self.eventQueue.sort(key=queued_event_key)
 
 	@expose
-	@bxt.utils.owner_cls
+	@bat.utils.owner_cls
 	def process_queue(self, ob):
 		'''Send queued messages that are ready. It is assumed that several
 		objects may be calling this each frame; however, only one per frame will
@@ -858,7 +858,7 @@ class Event:
 		return "Event(%s, %s)" % (str(self.message), str(self.body))
 
 	def send(self, delay=0):
-		'''Shorthand for bxt.types.EventBus().notify(event).'''
+		'''Shorthand for bat.bats.EventBus().notify(event).'''
 		EventBus().notify(self, delay)
 
 class WeakEvent(Event):

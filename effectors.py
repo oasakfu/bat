@@ -23,21 +23,21 @@ Created on 13/02/2010
 import bge
 import mathutils
 
-import bxt.types
-import bxt.utils
-import bxt.render
-import bxt.bmath
+import bat.bats
+import bat.utils
+import bat.render
+import bat.bmath
 
 DEBUG = False
 
-class ForceField(bxt.types.BX_GameObject, bge.types.KX_GameObject):
+class ForceField(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 	_prefix = 'FF_'
 
 	def __init__(self, old_owner):
 		self.set_state(2)
 		if DEBUG:
-			self.forceMarker = bxt.utils.add_object('VectorMarker', 0)
-			self.forceMarker.color = bxt.render.YELLOW
+			self.forceMarker = bat.utils.add_object('VectorMarker', 0)
+			self.forceMarker.color = bat.render.YELLOW
 
 	def modulate(self, distance, limit):
 		'''
@@ -60,8 +60,8 @@ class ForceField(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 			effect = 0.0
 		return self['FFMagnitude'] * effect
 
-	@bxt.types.expose
-	@bxt.utils.controller_cls
+	@bat.bats.expose
+	@bat.utils.controller_cls
 	def touched(self, c):
 		actors = set()
 		for s in c.sensors:
@@ -78,18 +78,18 @@ class ForceField(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		dist = (pos - self.worldPosition).magnitude
 
 		if dist > self['FFDist2'] or dist < 0.0001:
-			return bxt.bmath.ZEROVEC.copy()
+			return bat.bmath.ZEROVEC.copy()
 
-		pos = bxt.bmath.to_local(self, pos)
+		pos = bat.bmath.to_local(self, pos)
 		if 'FFZCut' in self and self['FFZCut'] and (pos.z > 0.0):
-			return bxt.bmath.ZEROVEC.copy()
+			return bat.bmath.ZEROVEC.copy()
 
 		vec = self.get_force_direction(pos)
 
 		vec.normalize()
 		magnitude = self.get_magnitude(dist)
 		vec *= magnitude
-		return bxt.bmath.to_world_vec(self, vec)
+		return bat.bmath.to_world_vec(self, vec)
 
 	def touched_single(self, actor):
 		'''Called when an object is inside the force field.'''
@@ -97,15 +97,15 @@ class ForceField(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		accel = self.get_world_acceleration(actor)
 
 		if DEBUG:
-			pos = bxt.bmath.to_local(self, actor.worldPosition)
-			self.forceMarker.worldPosition = bxt.bmath.to_world(self, pos)
-			if accel.magnitude > bxt.bmath.EPSILON:
+			pos = bat.bmath.to_local(self, actor.worldPosition)
+			self.forceMarker.worldPosition = bat.bmath.to_world(self, pos)
+			if accel.magnitude > bat.bmath.EPSILON:
 				self.forceMarker.alignAxisToVect(accel, 2)
-				self.forceMarker.color = bxt.render.YELLOW
+				self.forceMarker.color = bat.render.YELLOW
 			else:
-				self.forceMarker.color = bxt.render.BLACK
+				self.forceMarker.color = bat.render.BLACK
 
-		actor.worldLinearVelocity = bxt.bmath.integrate_v(
+		actor.worldLinearVelocity = bat.bmath.integrate_v(
 				actor.worldLinearVelocity, accel, 0.0)
 
 	def get_force_direction(self, localPos):
@@ -118,7 +118,7 @@ class Linear(ForceField):
 		ForceField.__init__(self, old_owner)
 
 	def get_force_direction(self, posLocal):
-		return bxt.bmath.to_local_vec(self, self.getAxisVect(bxt.bmath.YAXIS))
+		return bat.bmath.to_local_vec(self, self.getAxisVect(bat.bmath.YAXIS))
 
 	def modulate(self, distance, limit):
 		'''

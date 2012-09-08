@@ -22,8 +22,8 @@ import itertools
 import aud
 import bge
 
-import bxt.types
-import bxt.bmath
+import bat.bats
+import bat.bmath
 
 
 _aud_locked = False
@@ -54,7 +54,7 @@ def aud_lock(f):
 	return _aud_lock
 
 
-class Jukebox(metaclass=bxt.types.Singleton):
+class Jukebox(metaclass=bat.bats.Singleton):
 	'''
 	Plays music. This uses a stack of tracks to organise a playlist. Typically,
 	this would be used to have some level-wide music playing, and replace it
@@ -62,30 +62,30 @@ class Jukebox(metaclass=bxt.types.Singleton):
 	character enters a locality). For example:
 
 		# Start playing level music
-		bxt.sound.Jukebox().play_files(level_empty, 0, '//background_music.ogg')
+		bat.sound.Jukebox().play_files(level_empty, 0, '//background_music.ogg')
 		...
 		# Enter a locality
-		bxt.sound.Jukebox().play_files(house, 0, '//background_music.ogg')
+		bat.sound.Jukebox().play_files(house, 0, '//background_music.ogg')
 		...
 		# Return to main level music
-		bxt.sound.Jukebox().stop(house)
+		bat.sound.Jukebox().stop(house)
 
 	Notice that both of these tracks have a priority of 0, but the second will
 	still override the first. If the first had had a priority of 1, the second
 	track would not have started. For example:
 
 		# Start playing high-priority music
-		bxt.sound.Jukebox().play_files(level_empty, 1, '//first.ogg')
+		bat.sound.Jukebox().play_files(level_empty, 1, '//first.ogg')
 		...
 		# Enqueue low-priority music
-		bxt.sound.Jukebox().play_files(house, 0, '//second.ogg')
+		bat.sound.Jukebox().play_files(house, 0, '//second.ogg')
 		...
 		# second.ogg will start now.
-		bxt.sound.Jukebox().stop(level_empty)
+		bat.sound.Jukebox().stop(level_empty)
 	'''
 
 	def __init__(self):
-		self.stack = bxt.types.SafePriorityStack()
+		self.stack = bat.bats.SafePriorityStack()
 		self.current_track = None
 		self.discarded_tracks = []
 
@@ -324,7 +324,7 @@ class Fader(Effect):
 			self.multiplier = 0.0
 
 	def prepare(self, sample):
-		self.multiplier = bxt.bmath.clamp(0.0, 1.0, self.multiplier + self.rate)
+		self.multiplier = bat.bmath.clamp(0.0, 1.0, self.multiplier + self.rate)
 
 		# A multiplier is used to allow this to work together with other volume
 		# effects.
@@ -358,7 +358,7 @@ class FadeByLinV(Effect):
 		except SystemError:
 			sample.stop()
 			return
-		self.multiplier = bxt.bmath.approach_one(speed, self.scale)
+		self.multiplier = bat.bmath.approach_one(speed, self.scale)
 
 	@aud_lock
 	def apply(self, sample, handle):
@@ -383,8 +383,8 @@ class PitchByAngV(Effect):
 		except SystemError:
 			sample.stop()
 			return
-		factor = bxt.bmath.approach_one(speed, self.scale)
-		self.multiplier = bxt.bmath.lerp(self.pitchmin, self.pitchmax, factor)
+		factor = bat.bmath.approach_one(speed, self.scale)
+		self.multiplier = bat.bmath.lerp(self.pitchmin, self.pitchmax, factor)
 
 	def apply(self, sample, handle):
 		if not handle.status:
@@ -518,7 +518,7 @@ class Sample:
 			factory = factory.volume(self.volume)
 
 		if self.pitchmax != 1.0 or self.pitchmin != 1.0:
-			self.pitch = bxt.bmath.lerp(self.pitchmin, self.pitchmax,
+			self.pitch = bat.bmath.lerp(self.pitchmin, self.pitchmax,
 					bge.logic.getRandomFloat())
 			factory = factory.pitch(self.pitch)
 

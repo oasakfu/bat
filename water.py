@@ -18,9 +18,9 @@
 import bge
 import mathutils
 
-import bxt.types
-import bxt.bmath
-import bxt.effectors
+import bat.bats
+import bat.bmath
+import bat.effectors
 
 # The angle to rotate successive ripples by (giving them a random appearance),
 # in degrees.
@@ -30,7 +30,7 @@ BUBBLE_BIAS = 0.4
 
 DEBUG = False
 
-class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
+class Water(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 	_prefix = ''
 
 	S_INIT = 1
@@ -58,9 +58,9 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		self.InstanceAngle = 0.0
 
 		if DEBUG:
-			self.floatMarker = bxt.utils.add_object('VectorMarker', 0)
+			self.floatMarker = bat.utils.add_object('VectorMarker', 0)
 
-		self.floatingActors = bxt.types.SafeSet()
+		self.floatingActors = bat.bats.SafeSet()
 		self.set_state(self.S_IDLE)
 
 	def spawn_surface_decal(self, name, position):
@@ -96,7 +96,7 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		vec = vec * (actor['FloatRadius'] + BUBBLE_BIAS)
 		pos = actor.worldPosition.copy()
 		pos -= vec
-		pos += bxt.bmath.getRandomVector() * 0.05
+		pos += bat.bmath.getRandomVector() * 0.05
 
 		#
 		# Create object.
@@ -143,7 +143,7 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 
 		depth = hitPoint.z - origin.z
 		submergedFactor = depth / (actor['FloatRadius'] * 2.0)
-		submergedFactor = bxt.bmath.clamp(0.0, 1.0, submergedFactor)
+		submergedFactor = bat.bmath.clamp(0.0, 1.0, submergedFactor)
 
 		if not inside:
 			# The object is submerged, but its base is outside the water object.
@@ -191,23 +191,23 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		# water (up). Acceleration increases linearly with the depth, until the
 		# object is fully submerged.
 		#
-		submerged_factor = bxt.bmath.clamp(0.0, 1.0, submerged_factor)
+		submerged_factor = bat.bmath.clamp(0.0, 1.0, submerged_factor)
 		accel = mathutils.Vector((0.0, 0.0, actor['CurrentBuoyancy']))
 		for ff in force_fields:
 			accel += ff.get_world_acceleration(actor)
 		accel *= submerged_factor
 
 		damping = submerged_factor * self['DampingFactor']
-		actor.worldLinearVelocity = bxt.bmath.integrate_v(
+		actor.worldLinearVelocity = bat.bmath.integrate_v(
 				actor.worldLinearVelocity, accel, damping)
 
 		# Apply only damping to rotation.
-		actor.worldAngularVelocity = bxt.bmath.integrate_v(
-				actor.worldAngularVelocity, bxt.bmath.ZEROVEC, damping)
+		actor.worldAngularVelocity = bat.bmath.integrate_v(
+				actor.worldAngularVelocity, bat.bmath.ZEROVEC, damping)
 
 		if DEBUG:
 			self.floatMarker.worldPosition = actor.worldPosition
-			self.floatMarker.localScale = bxt.bmath.ONEVEC * accel
+			self.floatMarker.localScale = bat.bmath.ONEVEC * accel
 
 	def constrain_bubble(self, bubble, submerged_factor):
 		'''Don't let bubbles jump out of the water.'''
@@ -288,7 +288,7 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		'''
 		force_fields = []
 		for child in self.children:
-			if isinstance(child, bxt.effectors.ForceField):
+			if isinstance(child, bat.effectors.ForceField):
 				force_fields.append(child)
 
 		# Transfer floatation to hierarchy root (since children can't be
@@ -331,21 +331,21 @@ class Water(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 			self.set_state(self.S_IDLE)
 
 	def set_defaults(self, actor):
-		if '_bxt.waterInit' in actor:
+		if '_bat.waterInit' in actor:
 			return
-		bxt.utils.set_default_prop(actor, 'Oxygen', 1.0)
+		bat.utils.set_default_prop(actor, 'Oxygen', 1.0)
 		if hasattr(actor, 'on_oxygen_set'):
 			actor.on_oxygen_set()
-		bxt.utils.set_default_prop(actor, 'OxygenDepletionRate', 0.005)
-		bxt.utils.set_default_prop(actor, 'Buoyancy', 0.1)
-		bxt.utils.set_default_prop(actor, 'CurrentBuoyancy', actor['Buoyancy'])
-		bxt.utils.set_default_prop(actor, 'FloatRadius', 1.1)
-		bxt.utils.set_default_prop(actor, 'SinkFactor', 0.002)
-		bxt.utils.set_default_prop(actor, 'MinRippleSpeed', 1.0)
-		actor['_bxt.waterInit'] = True
+		bat.utils.set_default_prop(actor, 'OxygenDepletionRate', 0.005)
+		bat.utils.set_default_prop(actor, 'Buoyancy', 0.1)
+		bat.utils.set_default_prop(actor, 'CurrentBuoyancy', actor['Buoyancy'])
+		bat.utils.set_default_prop(actor, 'FloatRadius', 1.1)
+		bat.utils.set_default_prop(actor, 'SinkFactor', 0.002)
+		bat.utils.set_default_prop(actor, 'MinRippleSpeed', 1.0)
+		actor['_bat.waterInit'] = True
 
-	@bxt.types.expose
-	@bxt.utils.controller_cls
+	@bat.bats.expose
+	@bat.utils.controller_cls
 	def on_collision(self, c):
 		'''
 		Respond to collisions with Actors. Ripples will be created, and 

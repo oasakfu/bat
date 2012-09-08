@@ -17,9 +17,9 @@
 
 import bge
 
-import bxt.bmath
+import bat.bmath
 
-@bxt.utils.controller
+@bat.utils.controller
 def slow_copy_rot(c):
 	'''Slow parenting (Rotation only). The owner will copy the rotation of the
 	'sGoal' sensor's owner. The owner must have a SlowFac property:
@@ -28,9 +28,9 @@ def slow_copy_rot(c):
 
 	o = c.owner
 	goal = c.sensors['sGoal'].owner
-	bxt.bmath.slow_copy_rot(o, goal, o['RotFac'])
+	bat.bmath.slow_copy_rot(o, goal, o['RotFac'])
 
-@bxt.utils.controller
+@bat.utils.controller
 def slow_copy_loc(c):
 	'''Slow parenting (Location only). The owner will copy the position of the
 	'sGoal' sensor's owner. The owner must have a SlowFac property:
@@ -39,15 +39,15 @@ def slow_copy_loc(c):
 
 	o = c.owner
 	goal = c.sensors['sGoal'].owner
-	bxt.bmath.slow_copy_loc(o, goal, o['LocFac'])
+	bat.bmath.slow_copy_loc(o, goal, o['LocFac'])
 
-@bxt.utils.all_sensors_positive
-@bxt.utils.controller
+@bat.utils.all_sensors_positive
+@bat.utils.controller
 def copy_trans(c):
 	'''Copy the transform from a linked sensor's object to this object.'''
-	bxt.bmath.copy_transform(c.sensors[0].owner, c.owner)
+	bat.bmath.copy_transform(c.sensors[0].owner, c.owner)
 
-@bxt.utils.owner
+@bat.utils.owner
 def ray_follow(o):
 	'''Position an object some distance along its parent's z-axis. The object
 	will be placed at the first intersection point, or RestDist units from the
@@ -57,7 +57,7 @@ def ray_follow(o):
 	p = o.parent
 
 	origin = p.worldPosition
-	direction = p.getAxisVect(bxt.bmath.ZAXIS)
+	direction = p.getAxisVect(bat.bmath.ZAXIS)
 	through = origin + direction
 
 	hitOb, hitPoint, hitNorm = p.rayCast(
@@ -83,11 +83,11 @@ def ray_follow(o):
 	if targetDist < o['Dist']:
 		o['Dist'] = targetDist
 	else:
-		o['Dist'] = bxt.bmath.lerp(o['Dist'], targetDist, o['FollowFac'])
+		o['Dist'] = bat.bmath.lerp(o['Dist'], targetDist, o['FollowFac'])
 
 	o.worldPosition = origin + (direction * o['Dist'])
 
-@bxt.utils.owner
+@bat.utils.owner
 def orbit_follow(o):
 	vectTo = None
 	p = o.parent
@@ -98,7 +98,7 @@ def orbit_follow(o):
 		o['LastPos'] = o.worldPosition
 		return
 
-	zlocal = p.getAxisVect(bxt.bmath.ZAXIS)
+	zlocal = p.getAxisVect(bat.bmath.ZAXIS)
 	zcomponent = vectTo.project(zlocal)
 	targetDirection = vectTo - zcomponent
 	targetDirection.normalize()
@@ -127,15 +127,15 @@ def orbit_follow(o):
 	if targetDist < o['Dist']:
 		o['Dist'] = targetDist
 	else:
-		o['Dist'] = bxt.bmath.lerp(o['Dist'], targetDist, o['FollowFac'])
+		o['Dist'] = bat.bmath.lerp(o['Dist'], targetDist, o['FollowFac'])
 
 	o['LastPos'] = origin + (targetDirection * o['Dist'])
 	o.worldPosition = o['LastPos']
 	o.alignAxisToVect(zlocal, 1)
 	o.alignAxisToVect(targetDirection, 2)
 
-@bxt.utils.all_sensors_positive
-@bxt.utils.controller
+@bat.utils.all_sensors_positive
+@bat.utils.controller
 def spray_particle(c):
 	'''
 	Instance one particle, and decrement the particle counter. The particle will
@@ -169,7 +169,7 @@ def spray_particle(c):
 	c.activate('aEmit')
 	c.activate('aRot')
 
-@bxt.utils.owner
+@bat.utils.owner
 def billboard(o):
 	'''Track the camera - the Z-axis of the current object will be point towards
 	the camera.'''
@@ -177,6 +177,6 @@ def billboard(o):
 	_, vec, _ = o.getVectTo(bge.logic.getCurrentScene().active_camera)
 	o.alignAxisToVect(vec, 2)
 
-@bxt.utils.all_sensors_positive
+@bat.utils.all_sensors_positive
 def makeScreenshot():
 	bge.render.makeScreenshot('//Screenshot#.jpg')

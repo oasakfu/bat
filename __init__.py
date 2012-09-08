@@ -38,9 +38,9 @@ try:
 except ImportError:
 	pass
 
-import bxt.types
+import bat.bats
 
 #
 # Now that everything has been imported, create singletons.
 #
-bxt.types.EventBus()
+bat.bats.EventBus()

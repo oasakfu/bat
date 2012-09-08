@@ -20,9 +20,9 @@ import math
 import bge
 import mathutils
 
-import bxt.utils
-import bxt.render
-import bxt.types
+import bat.utils
+import bat.render
+import bat.bats
 
 DEBUG = False
 
@@ -198,7 +198,7 @@ def ray_cast_p2p(objto, objfrom, dist = 0.0, prop = ''):
 	face = 1
 	xray = 1
 	poly = 0
-	return bxt.utils.get_cursor().rayCast(objto, objfrom, dist, prop,
+	return bat.utils.get_cursor().rayCast(objto, objfrom, dist, prop,
 			face, xray, poly)
 
 def slow_copy_rot(o, goal, factor):
@@ -276,8 +276,8 @@ def quadNormal(p0, p1, p2, p3):
 
 	if DEBUG:
 		centre = (p0 + p1 + p2 + p3) / 4.0
-		bge.render.drawLine(centre, centre + normal, bxt.render.RED.xyz)
-		bxt.render.draw_polyline([p0, p1, p2, p3], bxt.render.GREEN, cyclic=True)
+		bge.render.drawLine(centre, centre + normal, bat.render.RED.xyz)
+		bat.render.draw_polyline([p0, p1, p2, p3], bat.render.GREEN, cyclic=True)
 
 	return normal
 
@@ -290,8 +290,8 @@ def triangleNormal(p0, p1, p2):
 
 	if DEBUG:
 		centre = (p0 + p1 + p2) / 3.0
-		bge.render.drawLine(centre, centre + normal, bxt.render.RED.xyz)
-		bxt.render.draw_polyline([p0, p1, p2], bxt.render.GREEN, cyclic=True)
+		bge.render.drawLine(centre, centre + normal, bat.render.RED.xyz)
+		bat.render.draw_polyline([p0, p1, p2], bat.render.GREEN, cyclic=True)
 
 	return normal
 
@@ -339,7 +339,7 @@ class Box2D:
 		return "Box(x={:g}, y={:g}), a={:g})".format(self.xHigh - self.xLow,
 				self.yHigh - self.yLow, self.get_area())
 
-class ArcRay(bxt.types.BX_GameObject, bge.types.KX_GameObject):
+class ArcRay(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 	'''Like a Ray sensor, but the detection is done along an arc. The arc
 	rotates around the y-axis, starting from the positive z-axis and sweeping
 	around to the positive x-axis.'''
@@ -363,7 +363,7 @@ class ArcRay(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 		self.lastHitNorm = ZAXIS.copy()
 
 		if DEBUG:
-			self.marker = bxt.utils.add_object('PointMarker', 0)
+			self.marker = bat.utils.add_object('PointMarker', 0)
 
 	def _createPoints(self):
 		'''Generate an arc of line segments to cast rays along.'''
@@ -412,11 +412,11 @@ class ArcRay(bxt.types.BX_GameObject, bge.types.KX_GameObject):
 				self.lastHitPoint = refMatInv * p
 				self.lastHitNorm = refOrnInv * norm
 				if DEBUG:
-					bge.render.drawLine(A, p, bxt.render.ORANGE.xyz)
+					bge.render.drawLine(A, p, bat.render.ORANGE.xyz)
 				break
 			else:
 				if DEBUG:
-					bge.render.drawLine(A, B, bxt.render.YELLOW.xyz)
+					bge.render.drawLine(A, B, bat.render.YELLOW.xyz)
 
 		wp = refMat * self.lastHitPoint
 		wn = refOrn * self.lastHitNorm
