@@ -62,9 +62,9 @@ except ImportError:
 
 
 
-import bat.bats
+import bat.event
 
 #
 # Now that everything has been imported, create singletons.
 #
-bat.bats.EventBus()
+bat.event.EventBus()

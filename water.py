@@ -15,6 +15,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+import logging
+
 import bge
 import mathutils
 
@@ -28,10 +30,10 @@ ANGLE_INCREMENT = 81.0
 # Extra spacing to bubble spawn points, in Blender units.
 BUBBLE_BIAS = 0.4
 
-DEBUG = False
-
 class Water(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 	_prefix = ''
+
+	log = logging.getLogger(__name__ + ".Water")
 
 	S_INIT = 1
 	S_IDLE = 2
@@ -57,7 +59,7 @@ class Water(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 
 		self.InstanceAngle = 0.0
 
-		if DEBUG:
+		if Water.log.isEnabledFor(10):
 			self.floatMarker = bat.utils.add_object('VectorMarker', 0)
 
 		self.floatingActors = bat.bats.SafeSet()
@@ -205,7 +207,7 @@ class Water(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 		actor.worldAngularVelocity = bat.bmath.integrate_v(
 				actor.worldAngularVelocity, bat.bmath.ZEROVEC, damping)
 
-		if DEBUG:
+		if Water.log.isEnabledFor(10):
 			self.floatMarker.worldPosition = actor.worldPosition
 			self.floatMarker.localScale = bat.bmath.ONEVEC * accel
 
@@ -294,7 +296,7 @@ class Water(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 		# Transfer floatation to hierarchy root (since children can't be
 		# dynamic). This accounts for the case where an object has started
 		# interacting with the water, but then changes its hierarchy.
-		old_floating_actors = self.floatingActors.copy()
+		old_floating_actors = set(self.floatingActors)
 		self.floatingActors.update(hitActors)
 		for actor in self.floatingActors.copy():
 			root = actor
@@ -317,6 +319,8 @@ class Water(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 
 		# Reset actors that are no longer floating.
 		no_longer_floating = old_floating_actors.difference(self.floatingActors)
+		if len(no_longer_floating) > 0:
+			Water.log.info("Stopped floating: %s", no_longer_floating)
 		for actor in no_longer_floating:
 			actor['Oxygen'] = 1.0
 			if hasattr(actor, 'on_oxygen_set'):
