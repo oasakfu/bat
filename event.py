@@ -116,6 +116,14 @@ class EventBus(metaclass=bat.bats.Singleton):
 			event = self.eventCache[message]
 			target.on_event(event)
 
+	def read_last(self, message):
+		'''
+		Fetch the last message. Note that this is a once-off operation. It's
+		usually better to call replay_last.
+		@raise KeyError: if no such message has been sent.
+		'''
+		return self.eventCache[message]
+
 #class EventListener:
 #	'''Interface for an object that can receive messages.'''
 #	def on_event(self, event):
