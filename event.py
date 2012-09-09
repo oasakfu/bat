@@ -18,6 +18,7 @@
 import logging
 
 import bat.bats
+import bat.containers
 
 class EventBus(metaclass=bat.bats.Singleton):
 	'''Delivers messages to listeners.'''
@@ -27,7 +28,7 @@ class EventBus(metaclass=bat.bats.Singleton):
 	log = logging.getLogger(__name__ + '.EventBus')
 
 	def __init__(self):
-		self.listeners = bat.bats.SafeSet()
+		self.listeners = bat.containers.SafeSet()
 		self.eventQueue = []
 		self.eventCache = {}
 		self.lastCaller = (None, 0)
@@ -136,7 +137,7 @@ class WeakEvent(Event):
 	'''An event whose body may be destroyed before it is read. Use this when
 	the body is a game object.'''
 
-	body = bat.bats.weakprop('body')
+	body = bat.containers.weakprop('body')
 
 	def __init__(self, message, body):
 		super(WeakEvent, self).__init__(message, body)

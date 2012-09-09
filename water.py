@@ -21,6 +21,7 @@ import bge
 import mathutils
 
 import bat.bats
+import bat.containers
 import bat.bmath
 import bat.effectors
 
@@ -59,7 +60,7 @@ class Water(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 
 		self.InstanceAngle = 0.0
 
-		self.floatingActors = bat.bats.SafeSet()
+		self.floatingActors = bat.containers.SafeSet()
 		self.set_state(self.S_IDLE)
 
 	def spawn_surface_decal(self, name, position):

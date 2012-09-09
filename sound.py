@@ -22,7 +22,7 @@ import itertools
 import aud
 import bge
 
-import bat.bats
+import bat.containers
 import bat.bmath
 
 
@@ -85,7 +85,7 @@ class Jukebox(metaclass=bat.bats.Singleton):
 	'''
 
 	def __init__(self):
-		self.stack = bat.bats.SafePriorityStack()
+		self.stack = bat.containers.SafePriorityStack()
 		self.current_track = None
 		self.discarded_tracks = []
 
