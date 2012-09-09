@@ -289,6 +289,7 @@ class Water(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 		for child in self.children:
 			if isinstance(child, bat.effectors.ForceField):
 				force_fields.append(child)
+		Water.log.debug("Force fields: %s", force_fields)
 
 		# Transfer floatation to hierarchy root (since children can't be
 		# dynamic). This accounts for the case where an object has started

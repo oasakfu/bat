@@ -14,30 +14,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-'''
-Created on 13/02/2010
 
-@author: alex
-'''
+import logging
 
 import bge
 import mathutils
 
 import bat.bats
 import bat.utils
-import bat.render
 import bat.bmath
-
-DEBUG = False
 
 class ForceField(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 	_prefix = 'FF_'
 
+	log = logging.getLogger(__name__ + ".ForceField")
+
 	def __init__(self, old_owner):
 		self.set_state(2)
-		if DEBUG:
-			self.forceMarker = bat.utils.add_object('VectorMarker', 0)
-			self.forceMarker.color = bat.render.YELLOW
 
 	def modulate(self, distance, limit):
 		'''
@@ -88,6 +81,7 @@ class ForceField(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 
 		vec.normalize()
 		magnitude = self.get_magnitude(dist)
+		ForceField.log.debug("Force magnitude of %s on %s is %g", self, actor, magnitude)
 		vec *= magnitude
 		return bat.bmath.to_world_vec(self, vec)
 
@@ -95,16 +89,6 @@ class ForceField(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 		'''Called when an object is inside the force field.'''
 
 		accel = self.get_world_acceleration(actor)
-
-		if DEBUG:
-			pos = bat.bmath.to_local(self, actor.worldPosition)
-			self.forceMarker.worldPosition = bat.bmath.to_world(self, pos)
-			if accel.magnitude > bat.bmath.EPSILON:
-				self.forceMarker.alignAxisToVect(accel, 2)
-				self.forceMarker.color = bat.render.YELLOW
-			else:
-				self.forceMarker.color = bat.render.BLACK
-
 		actor.worldLinearVelocity = bat.bmath.integrate_v(
 				actor.worldLinearVelocity, accel, 0.0)
 
