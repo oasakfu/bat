@@ -59,9 +59,6 @@ class Water(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 
 		self.InstanceAngle = 0.0
 
-		if Water.log.isEnabledFor(10):
-			self.floatMarker = bat.utils.add_object('VectorMarker', 0)
-
 		self.floatingActors = bat.bats.SafeSet()
 		self.set_state(self.S_IDLE)
 
@@ -122,8 +119,8 @@ class Water(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 		origin.z = origin.z - actor['FloatRadius']
 		# Force ray to be vertical.
 		through = origin.copy()
-		through.z = self.worldPosition.z + 1.0
-		vec = through - origin
+		through.z += 100000.0
+		Water.log.debug("Ray(%s to %s)", origin, through)
 		ob, hitPoint, normal = actor.rayCast(
 			through,			 # to
 			origin,			  # from
@@ -135,11 +132,12 @@ class Water(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 
 		if ob == None:
 			# No hit; object is not submerged.
+			Water.log.debug("%s is not submerged in %s", actor, self)
 			return 0.0
 
 		inside = False
 		if (ob):
-			if normal.dot(vec) > 0.0:
+			if normal.dot(bat.bmath.ZAXIS) > 0.0:
 				# Hit was from inside.
 				inside = True
 
@@ -154,6 +152,7 @@ class Water(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 			# This must be a shaped water object (such as honey).
 			submergedFactor = 1.0 - submergedFactor
 
+		Water.log.debug("%s submerged in %s by %g", actor, self, submergedFactor)
 		return submergedFactor
 
 	def reduce_oxygen(self, actor, submerged_factor):
@@ -194,7 +193,9 @@ class Water(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 		# object is fully submerged.
 		#
 		submerged_factor = bat.bmath.clamp(0.0, 1.0, submerged_factor)
-		accel = mathutils.Vector((0.0, 0.0, actor['CurrentBuoyancy']))
+		buoyancy = actor['CurrentBuoyancy']
+		Water.log.debug("%s['CurrentBuoyancy'] = %g", actor, buoyancy)
+		accel = mathutils.Vector((0.0, 0.0, buoyancy))
 		for ff in force_fields:
 			accel += ff.get_world_acceleration(actor)
 		accel *= submerged_factor
@@ -206,10 +207,6 @@ class Water(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 		# Apply only damping to rotation.
 		actor.worldAngularVelocity = bat.bmath.integrate_v(
 				actor.worldAngularVelocity, bat.bmath.ZEROVEC, damping)
-
-		if Water.log.isEnabledFor(10):
-			self.floatMarker.worldPosition = actor.worldPosition
-			self.floatMarker.localScale = bat.bmath.ONEVEC * accel
 
 	def constrain_bubble(self, bubble, submerged_factor):
 		'''Don't let bubbles jump out of the water.'''

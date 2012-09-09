@@ -292,10 +292,10 @@ class BX_GameObject(metaclass=GameOb):
 				return "<Dead game object>"
 		else:
 			if hasattr(self, '_orig_name') and self._orig_name != self.name:
-				return "BX_GameObject(%s) (was %s)" % (super(BX_GameObject, self).__repr__(),
+				return "BX(%s) (was %s)" % (super(BX_GameObject, self).__repr__(),
 						self._orig_name)
 			else:
-				return "BX_GameObject(%s)" % self.name
+				return "BX(%s)" % self.name
 
 clsCache = {}
 def _get_class(qualifiedName):
