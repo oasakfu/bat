@@ -169,7 +169,7 @@ class SceneDispatch(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 	@bat.bats.expose
 	def process(self):
 		for fn, args, kwargs in list(self.pending):
-			SceneDispatch.log.info("Calling deferred function %s in %s", fn,
+			SceneDispatch.log.debug("Calling deferred function %s in %s", fn,
 					bge.logic.getCurrentScene())
 			try:
 				fn(*args, **kwargs)
@@ -188,7 +188,7 @@ class SceneDispatch(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 			fn(*args, **kwargs)
 			return
 
-		SceneDispatch.log.info("Deferring function call %s from %s to %s", fn,
+		SceneDispatch.log.debug("Deferring function call %s from %s to %s", fn,
 				bge.logic.getCurrentScene(), scene)
 		try:
 			dispatcher = scene.objects['BXT_Dispatch']
