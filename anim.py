@@ -38,14 +38,14 @@ DEBUG = False
 
 class Trigger:
 	def __init__(self):
-		self.current_frame = bat.bats.Timekeeper().get_frame_num()
+		self.current_frame = bat.bats.Timekeeper().current_frame
 
 	def is_next_frame(self):
 		'''
 		Only consider animation to be complete if the next frame has actually
 		been drawn.
 		'''
-		frame_num = bat.bats.Timekeeper().get_frame_num()
+		frame_num = bat.bats.Timekeeper().current_frame
 		if self.current_frame == frame_num:
 			return False
 		self.current_frame = frame_num

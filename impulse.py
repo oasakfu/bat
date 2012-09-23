@@ -64,13 +64,13 @@ class Input(metaclass=bat.bats.Singleton):
 
 	@bat.bats.expose
 	@bat.utils.controller_cls
+	@bat.bats.once_per_tick
 	def process(self, c):
 		'''Distribute all events to the listeners.'''
-		#joy_axis = c.sensors['Joystick_axis']
-		#joy_btn = c.sensors['Joystick_btn']
+		js = c.sensors['Joystick']
 
 		for btn in self.buttons:
-			btn.update()
+			btn.update(js)
 
 		# Run through the handlers separately for each event type, because a
 		# handler may accept some events and not others.
@@ -139,22 +139,37 @@ class Input(metaclass=bat.bats.Singleton):
 
 	def load_config(self):
 		'''Bind keys and buttons to the interfaces.'''
-		self.dp_move.up.keyboard_keys.append(bge.events.UPARROWKEY)
-		self.dp_move.up.keyboard_keys.append(bge.events.WKEY)
-		self.dp_move.down.keyboard_keys.append(bge.events.DOWNARROWKEY)
-		self.dp_move.down.keyboard_keys.append(bge.events.SKEY)
-		self.dp_move.left.keyboard_keys.append(bge.events.LEFTARROWKEY)
-		self.dp_move.left.keyboard_keys.append(bge.events.AKEY)
-		self.dp_move.right.keyboard_keys.append(bge.events.RIGHTARROWKEY)
-		self.dp_move.right.keyboard_keys.append(bge.events.DKEY)
+		# TODO: Move this out of BAT; make it configurable.
+		self.dp_move.up.sensors.append(KeyboardSensor(bge.events.UPARROWKEY))
+		self.dp_move.up.sensors.append(KeyboardSensor(bge.events.WKEY))
+		self.dp_move.up.sensors.append(JoystickDpadSensor(0, 1))
+		self.dp_move.right.sensors.append(KeyboardSensor(bge.events.RIGHTARROWKEY))
+		self.dp_move.right.sensors.append(KeyboardSensor(bge.events.DKEY))
+		self.dp_move.right.sensors.append(JoystickDpadSensor(0, 2))
+		self.dp_move.down.sensors.append(KeyboardSensor(bge.events.DOWNARROWKEY))
+		self.dp_move.down.sensors.append(KeyboardSensor(bge.events.SKEY))
+		self.dp_move.down.sensors.append(JoystickDpadSensor(0, 4))
+		self.dp_move.left.sensors.append(KeyboardSensor(bge.events.LEFTARROWKEY))
+		self.dp_move.left.sensors.append(KeyboardSensor(bge.events.AKEY))
+		self.dp_move.left.sensors.append(JoystickDpadSensor(0, 8))
+		self.dp_move.xaxes.append(JoystickAxisSensor(0))
+		self.dp_move.yaxes.append(JoystickAxisSensor(1))
 
-		self.dp_switch.next.keyboard_keys.append(bge.events.EKEY)
-		self.dp_switch.prev.keyboard_keys.append(bge.events.QKEY)
+		self.dp_switch.next.sensors.append(KeyboardSensor(bge.events.EKEY))
+		self.dp_switch.next.sensors.append(JoystickButtonSensor(5))
+		self.dp_switch.prev.sensors.append(KeyboardSensor(bge.events.QKEY))
+		self.dp_switch.prev.sensors.append(JoystickButtonSensor(4))
+		#self.dp_switch.axes.append(JoystickAxisSensor(0))
 
-		self.btn1.keyboard_keys.append(bge.events.SPACEKEY)
-		self.btn1.keyboard_keys.append(bge.events.ENTERKEY)
-		self.btn2.keyboard_keys.append(bge.events.XKEY)
-		self.btn_cam.keyboard_keys.append(bge.events.CKEY)
+		self.btn1.sensors.append(KeyboardSensor(bge.events.SPACEKEY))
+		self.btn1.sensors.append(KeyboardSensor(bge.events.ENTERKEY))
+		self.btn1.sensors.append(JoystickButtonSensor(2))
+
+		self.btn2.sensors.append(KeyboardSensor(bge.events.XKEY))
+		self.btn2.sensors.append(JoystickButtonSensor(1))
+
+		self.btn_cam.sensors.append(KeyboardSensor(bge.events.CKEY))
+		self.btn_cam.sensors.append(JoystickButtonSensor(0))
 
 	def add_handler(self, handler, priority='PLAYER'):
 		self.handlers.push(handler, Input.PRI[priority])
@@ -177,11 +192,12 @@ class Input(metaclass=bat.bats.Singleton):
 class Button:
 	'''A simple button (0 dimensions).'''
 
+	log = logging.getLogger(__name__ + '.Button')
+
 	def __init__(self, name, char):
 		self.name = name
 		self.char = char
-		self.keyboard_keys = []
-		#self.joystick_buttons = []
+		self.sensors = []
 
 		self.positive = False
 		self.triggered = False
@@ -195,16 +211,17 @@ class Button:
 		'''
 		return self.positive and self.triggered
 
-	def update(self):
+	def update(self, js):
 		positive = False
-		for key in self.keyboard_keys:
-			if key in bge.logic.keyboard.active_events:
+		for s in self.sensors:
+			if s.evaluate(bge.logic.keyboard.active_events, js):
 				positive = True
 				break
 
 		if positive != self.positive:
 			self.triggered = True
 			self.positive = positive
+			Button.log.debug("%s", self)
 		else:
 			self.triggered = False
 
@@ -228,22 +245,34 @@ class DPad1D:
 		self.name = name
 		self.char_next = char_next
 		self.char_prev = char_prev
+
+		# Discrete buttons
 		self.next = Button("next", char_next)
 		self.prev = Button("prev", char_prev)
+		# Continuous sensors
+		self.axes = []
+
 		self.direction = 0.0
 		self.bias = 0.0
 		self.dominant = None
 		self.triggered = False
 
-	def update(self):
-		self.next.update()
-		self.prev.update()
+	def update(self, js):
+		self.next.update(js)
+		self.prev.update(js)
 
 		x = 0.0
 		if self.next.positive:
 			x += 1.0
 		if self.prev.positive:
 			x -= 1.0
+		for axis in self.axes:
+			x += axis.evaluate(bge.logic.keyboard.active_events, js)
+
+		if x > 1.0:
+			x = 1.0
+		elif x < -1.0:
+			x = -1.0
 
 		self.direction = x
 
@@ -269,6 +298,7 @@ class DPad1D:
 			self.dominant = dominant
 			self.bias = bias
 			self.triggered = True
+			Button.log.debug("%s", self)
 		else:
 			self.triggered = False
 
@@ -290,10 +320,16 @@ class DPad2D:
 		self.char_down = char_down
 		self.char_left = char_left
 		self.char_right = char_right
+
+		# Discrete buttons
 		self.up = Button("up", char_up)
 		self.down = Button("down", char_down)
 		self.left = Button("left", char_left)
 		self.right = Button("right", char_right)
+		# Continuous sensors
+		self.xaxes = []
+		self.yaxes = []
+
 		self.direction = mathutils.Vector((0.0, 0.0))
 		self.bias = mathutils.Vector((0.0, 0.0))
 		self.dominant = None
@@ -301,23 +337,38 @@ class DPad2D:
 		self.triggered_repeat = False
 		self.repeat_delay = 0
 
-	def update(self):
-		self.up.update()
-		self.down.update()
-		self.left.update()
-		self.right.update()
+	def update(self, js):
+		self.up.update(js)
+		self.down.update(js)
+		self.left.update(js)
+		self.right.update(js)
 
 		y = 0.0
 		if self.up.positive:
 			y += 1.0
 		if self.down.positive:
 			y -= 1.0
+		for axis in self.yaxes:
+			# Note: Invert Y-axis
+			y -= axis.evaluate(bge.logic.keyboard.active_events, js)
+
+		if y > 1.0:
+			y = 1.0
+		elif y < -1.0:
+			y = -1.0
 
 		x = 0.0
 		if self.right.positive:
 			x += 1.0
 		if self.left.positive:
 			x -= 1.0
+		for axis in self.xaxes:
+			x += axis.evaluate(bge.logic.keyboard.active_events, js)
+
+		if x > 1.0:
+			x = 1.0
+		elif x < -1.0:
+			x = -1.0
 
 		self.direction.x = x
 		self.direction.y = y
@@ -356,6 +407,7 @@ class DPad2D:
 			self.triggered = True
 			self.triggered_repeat = True
 			self.repeat_delay = INITIAL_REPEAT_DELAY
+			Button.log.debug("%s", self)
 		elif self.repeat_delay <= 0:
 			self.triggered = False
 			self.triggered_repeat = True
@@ -375,6 +427,39 @@ class DPad2D:
 
 	def __str__(self):
 		return "Button %s - direction: %s" % (self.name, self.direction)
+
+class KeyboardSensor:
+	'''For keyboard keys.'''
+	def __init__(self, key):
+		self.key = key
+
+	def evaluate(self, active_keys, js):
+		return self.key in active_keys
+
+class JoystickButtonSensor:
+	'''For regular joystick buttons.'''
+	def __init__(self, button):
+		self.button = button
+
+	def evaluate(self, active_keys, js):
+		return self.button in js.getButtonActiveList()
+
+class JoystickDpadSensor:
+	'''For detecting DPad presses.'''
+	def __init__(self, hat_index, button_flag):
+		self.hat_index = hat_index
+		self.button_flag = button_flag
+
+	def evaluate(self, active_keys, js):
+		return js.hatValues[self.hat_index] & self.button_flag
+
+class JoystickAxisSensor:
+	'''For detecting DPad presses.'''
+	def __init__(self, axis_index):
+		self.axis_index = axis_index
+
+	def evaluate(self, active_keys, js):
+		return js.axisValues[self.axis_index] / 32767.0
 
 class Handler:
 	'''

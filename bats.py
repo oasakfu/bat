@@ -17,10 +17,13 @@
 
 import sys
 import logging
+from functools import wraps
 
 import bge
 
 import bat.utils
+
+log = logging.getLogger(__name__)
 
 PROFILE_BASIC = False
 PROFILE_STOCHASTIC = False
@@ -332,27 +335,50 @@ def add_and_mutate_object(scene, ob, other=None, time=0):
 
 	if other == None:
 		other = ob
+	log.debug("Adding and mutating %s at %s in scene %s", ob, other, scene)
+	log.debug("Active: %s, Inactive: %s", ob in scene.objects,
+			ob in scene.objectsInactive)
 	o = scene.addObject(ob, other, time)
 	return mutate(o)
 
 #
-# Events
+# Time
 #
 
 class Timekeeper(metaclass=Singleton):
+
+	_prefix = 'TK_'
+
 	def __init__(self):
-		self.current_frame = 0
+		self._current_frame = 0
+		self.current_tick = 0
 		self.locked = False
 		self.ensure_installed()
+		self.callers = set()
 
-	def get_frame_num(self):
+	@property
+	def current_frame(self):
 		# Make sure the timekeeper is running for every scene that wants to use
 		# it.
 		self.ensure_installed()
-		return self.current_frame
+		return self._current_frame
+
+	@expose
+	@bat.utils.controller_cls
+	def update(self, c):
+		if len(self.callers) == 0 or c.owner in self.callers:
+			# The object calling this method is the first object to do so on
+			# this logic tick.
+			self.callers.clear()
+			self.current_tick += 1
+		self.callers.add(c.owner)
 
 	@staticmethod
 	def frame_count_pre():
+		'''
+		Unlock. It doesn't matter which scene this gets called from, because all
+		scenes will render before frame_count_post is called.
+		'''
 		tk = Timekeeper()
 		tk.locked = False
 
@@ -365,7 +391,7 @@ class Timekeeper(metaclass=Singleton):
 		if tk.locked:
 			return
 		tk.locked = True
-		tk.current_frame += 1
+		tk._current_frame += 1
 
 	def ensure_installed(self):
 		sce = bge.logic.getCurrentScene()
@@ -375,6 +401,36 @@ class Timekeeper(metaclass=Singleton):
 		#print("Installing timekeeper")
 		sce.pre_draw.append(Timekeeper.frame_count_pre)
 		sce.post_draw.append(Timekeeper.frame_count_post)
+
+def once_per_frame(f):
+	'''
+	Decorator. Ensures that a function runs only once per rendered frame.
+	Note: function can not return anything.
+	'''
+	f._last_frame_num = -1
+	@wraps(f)
+	def f_once_per_frame(*args, **kwargs):
+		frame_num = Timekeeper().current_frame
+		if frame_num == f._last_frame_num:
+			return
+		f._last_frame_num = frame_num
+		return f(*args, **kwargs)
+	return f_once_per_frame
+
+def once_per_tick(f):
+	'''
+	Decorator. Ensures that a function runs only once per logic tick. Note:
+	function can not return anything.
+	'''
+	f._last_tick_num = -1
+	@wraps(f)
+	def f_once_per_tick(*args, **kwargs):
+		frame_num = Timekeeper().current_tick
+		if frame_num == f._last_tick_num:
+			return
+		f._last_tick_num = frame_num
+		return f(*args, **kwargs)
+	return f_once_per_tick
 
 #
 # State abstractions

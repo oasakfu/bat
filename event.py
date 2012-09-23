@@ -17,6 +17,8 @@
 
 import logging
 
+import bge
+
 import bat.bats
 import bat.containers
 
@@ -32,7 +34,6 @@ class EventBus(metaclass=bat.bats.Singleton):
 		self.eventQueue = []
 		self.eventCache = {}
 		self.lastCaller = (None, 0)
-		self.last_frame_num = bat.bats.Timekeeper().get_frame_num()
 
 	def add_listener(self, listener):
 		EventBus.log.info("Added event listener %s", listener)
@@ -53,18 +54,13 @@ class EventBus(metaclass=bat.bats.Singleton):
 
 	@bat.bats.expose
 	@bat.utils.owner_cls
+	@bat.bats.once_per_tick
 	def process_queue(self, ob):
 		'''Send queued messages that are ready. It is assumed that several
 		objects may be calling this each frame; however, only one per frame will
 		succeed.'''
 		if len(self.eventQueue) == 0:
 			return
-
-		# Acquire lock for this frame.
-		frame_num = bat.bats.Timekeeper().get_frame_num()
-		if frame_num == self.last_frame_num:
-			return
-		self.last_frame_num = frame_num
 
 		# Decrement the frame counter for each queued message.
 		newQueue = []
@@ -130,9 +126,12 @@ class EventBus(metaclass=bat.bats.Singleton):
 #		pass
 
 class Event:
+	scene = bat.containers.weakprop('scene')
+
 	def __init__(self, message, body=None):
 		self.message = message
 		self.body = body
+		self.scene = bge.logic.getCurrentScene()
 
 	def __str__(self):
 		return "Event(%s, %s)" % (str(self.message), str(self.body))

@@ -540,6 +540,7 @@ class Sample:
 		return "Sample({})".format(self.source)
 
 _playing_samples = set()
+@bat.bats.once_per_tick
 def update():
 	'''
 	Process the sounds that are currently playing, e.g. update 3D positions.
