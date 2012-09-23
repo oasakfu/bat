@@ -54,7 +54,7 @@ class EventBus(metaclass=bat.bats.Singleton):
 
 	@bat.bats.expose
 	@bat.utils.owner_cls
-	@bat.bats.once_per_tick
+	@bat.bats.once_per_frame
 	def process_queue(self, ob):
 		'''Send queued messages that are ready. It is assumed that several
 		objects may be calling this each frame; however, only one per frame will
@@ -126,12 +126,9 @@ class EventBus(metaclass=bat.bats.Singleton):
 #		pass
 
 class Event:
-	scene = bat.containers.weakprop('scene')
-
 	def __init__(self, message, body=None):
 		self.message = message
 		self.body = body
-		self.scene = bge.logic.getCurrentScene()
 
 	def __str__(self):
 		return "Event(%s, %s)" % (str(self.message), str(self.body))
@@ -148,3 +145,58 @@ class WeakEvent(Event):
 
 	def __init__(self, message, body):
 		super(WeakEvent, self).__init__(message, body)
+
+
+class SceneDispatch(bat.bats.BX_GameObject, bge.types.KX_GameObject):
+	'''
+	Calls functions in the context of a particular scene. This is necessary
+	for some BGE operations, such as LibLoad which always loads data into
+	the current scene. To use, make sure the BXT_Dispatcher object is in the
+	target scene, and then call call_in_scene.
+	'''
+
+	log = logging.getLogger(__name__ + '.SceneDispatch')
+
+	_prefix = 'SD_'
+
+	def __init__(self, old_owner):
+		SceneDispatch.log.info("Creating SceneDispatch in %s", self.scene)
+		self.pending = []
+
+	def enqueue(self, function, *args, **kwargs):
+		self.pending.append((function, args, kwargs))
+
+	@bat.bats.expose
+	def process(self):
+		for fn, args, kwargs in list(self.pending):
+			SceneDispatch.log.info("Calling deferred function %s in %s", fn,
+					bge.logic.getCurrentScene())
+			try:
+				fn(*args, **kwargs)
+			except Exception as e:
+				SceneDispatch.log.error("Exception while executing deferred "
+						"function %s in %s:\n%s", fn,
+						bge.logic.getCurrentScene(), e)
+		self.pending = []
+
+	@staticmethod
+	def call_in_scene(scene, fn, *args, **kwargs):
+		if scene is bge.logic.getCurrentScene():
+			# Call immediately.
+			SceneDispatch.log.info("Calling immediate function %s in %s", fn,
+					bge.logic.getCurrentScene())
+			fn(*args, **kwargs)
+			return
+
+		SceneDispatch.log.info("Deferring function call %s from %s to %s", fn,
+				bge.logic.getCurrentScene(), scene)
+		try:
+			dispatcher = scene.objects['BXT_Dispatcher']
+		except KeyError:
+			raise KeyError("No dispatcher in scene %s. Ensure the group G_BXT "
+					"is linked." % scene)
+		try:
+			dispatcher.enqueue(fn, *args, **kwargs)
+		except AttributeError:
+			dispatcher = bat.bats.mutate(dispatcher)
+			dispatcher.enqueue(fn, *args, **kwargs)
