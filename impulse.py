@@ -23,6 +23,7 @@ import mathutils
 import bat.bats
 import bat.containers
 import bat.utils
+import bat.event
 
 INITIAL_REPEAT_DELAY = 30
 REPEAT_DELAY = 5
@@ -40,23 +41,7 @@ class Input(metaclass=bat.bats.Singleton):
 
 	def __init__(self):
 		self.handlers = bat.containers.SafePriorityStack()
-
-		# Acquire movement from a 2D directional pad.
-		self.dp_move = DPad2D("Movement", 'u', 'd', 'l', 'r')
-
-		# The switch command can be "next" or "previous"; use a 1D pad to filter
-		# out multiple conflicting button presses.
-		self.dp_switch = DPad1D("Switch", 'n', 'p')
-
-		# Standard buttons.
-		self.btn1 = Button("1", '1')
-		self.btn2 = Button("2", '2')
-		self.btn_cam = Button("Camera", 'c')
-
-		self.buttons = [self.dp_move, self.btn1, self.btn2, self.dp_switch,
-				self.btn_cam]
-
-		self.load_config()
+		self.buttons = []
 
 		self.sequence_map = {}
 		self.max_seq_len = 0
@@ -75,32 +60,16 @@ class Input(metaclass=bat.bats.Singleton):
 		# Run through the handlers separately for each event type, because a
 		# handler may accept some events and not others.
 
-		# Movement
-		for h in self.handlers:
-			if h.handle_movement(self.dp_move):
-				# This handler has claimed ownership, so stop processing.
-				Input.log.debug("Movement handled by %s", h)
-				break
-
-		# Inventory switch
-		for h in self.handlers:
-			if h.handle_switch(self.dp_switch):
-				Input.log.debug("Switch handled by %s", h)
-				break
-
-		# Other buttons
-		for h in self.handlers:
-			if h.handle_bt_1(self.btn1):
-				Input.log.debug("Button 1 handled by %s", h)
-				break
-		for h in self.handlers:
-			if h.handle_bt_2(self.btn2):
-				Input.log.debug("Button 2 handled by %s", h)
-				break
-		for h in self.handlers:
-			if h.handle_bt_camera(self.btn_cam):
-				Input.log.debug("Button camera handled by %s", h)
-				break
+		for btn in self.buttons:
+			for h in self.handlers:
+				if h.can_handle_input(btn):
+					Input.log.debug("%s handled by %s", btn, h)
+					if hasattr(h, 'scene'):
+						bat.event.SceneDispatch.call_in_scene(h.scene,
+								h.handle_input, btn)
+					else:
+						h.handle_input(btn)
+					break
 
 		self.check_sequences()
 
@@ -137,41 +106,27 @@ class Input(metaclass=bat.bats.Singleton):
 		if len(self.sequence) > self.max_seq_len:
 			self.sequence = self.sequence[-self.max_seq_len:]
 
-	def load_config(self):
-		'''Bind keys and buttons to the interfaces.'''
-		# TODO: Move this out of BAT; make it configurable.
-		self.dp_move.up.sensors.append(KeyboardSensor(bge.events.UPARROWKEY))
-		self.dp_move.up.sensors.append(KeyboardSensor(bge.events.WKEY))
-		self.dp_move.up.sensors.append(JoystickDpadSensor(0, 1))
-		self.dp_move.right.sensors.append(KeyboardSensor(bge.events.RIGHTARROWKEY))
-		self.dp_move.right.sensors.append(KeyboardSensor(bge.events.DKEY))
-		self.dp_move.right.sensors.append(JoystickDpadSensor(0, 2))
-		self.dp_move.down.sensors.append(KeyboardSensor(bge.events.DOWNARROWKEY))
-		self.dp_move.down.sensors.append(KeyboardSensor(bge.events.SKEY))
-		self.dp_move.down.sensors.append(JoystickDpadSensor(0, 4))
-		self.dp_move.left.sensors.append(KeyboardSensor(bge.events.LEFTARROWKEY))
-		self.dp_move.left.sensors.append(KeyboardSensor(bge.events.AKEY))
-		self.dp_move.left.sensors.append(JoystickDpadSensor(0, 8))
-		self.dp_move.xaxes.append(JoystickAxisSensor(0))
-		self.dp_move.yaxes.append(JoystickAxisSensor(1))
+	def clear_buttons(self):
+		self.buttons = []
 
-		self.dp_switch.next.sensors.append(KeyboardSensor(bge.events.EKEY))
-		self.dp_switch.next.sensors.append(JoystickButtonSensor(5))
-		self.dp_switch.prev.sensors.append(KeyboardSensor(bge.events.QKEY))
-		self.dp_switch.prev.sensors.append(JoystickButtonSensor(4))
-		#self.dp_switch.axes.append(JoystickAxisSensor(0))
-
-		self.btn1.sensors.append(KeyboardSensor(bge.events.SPACEKEY))
-		self.btn1.sensors.append(KeyboardSensor(bge.events.ENTERKEY))
-		self.btn1.sensors.append(JoystickButtonSensor(2))
-
-		self.btn2.sensors.append(KeyboardSensor(bge.events.XKEY))
-		self.btn2.sensors.append(JoystickButtonSensor(1))
-
-		self.btn_cam.sensors.append(KeyboardSensor(bge.events.CKEY))
-		self.btn_cam.sensors.append(JoystickButtonSensor(0))
+	def add_button(self, sensor):
+		'''
+		Add a button to the input manager. It will be evaluated on every logic
+		tick, and the handers will be notified.
+		'''
+		self.buttons.append(sensor)
 
 	def add_handler(self, handler, priority='PLAYER'):
+		'''
+		Let an object receive input from the user. On every logic tick, the
+		handlers will be processed in-order for all buttons. First,
+		'handler.can_handle_input(state)' will be called, where 'state' is the
+		button's state. If that returns True, 'handler.handle_input(state)' will
+		be called. handle_input is guaranteed to be called in the context of the
+		handler's own scene, if it has one. Note that that may occur one tick
+		after the input was received.
+		@see Handler
+		'''
 		self.handlers.push(handler, Input.PRI[priority])
 		Input.log.info("Handlers: %s", self.handlers)
 
@@ -470,50 +425,17 @@ class Handler:
 	self.default_handler_response = False.
 	'''
 
-	def handle_movement(self, state):
-		'''
-		Handle a movement request from the user.
-		@param direction: The direction to move in (2D vector; +y is up).
-		@return: True if the input has been consumed.
-		'''
-		return self.default_handler_response
-
-	def handle_switch(self, state):
-		return self.default_handler_response
-
-	def handle_bt_1(self, state):
+	def can_handle_input(self, state):
 		'''
 		Handle a button press.
-		@param state: The state of the button. state.positive, state.triggered
-		@return: True if the input has been consumed.
+		@param state: The state of the button. state.name
+		@return: True if the input can be consumed.
 		'''
-		return self.default_handler_response
-
-	def handle_bt_2(self, state):
-		return self.default_handler_response
-
-	def handle_bt_camera(self, state):
-		return self.default_handler_response
-
-	@property
-	def default_handler_response(self):
-		try:
-			return self._default_handler_response
-		except AttributeError:
-			self._default_handler_response = True
-			return self._default_handler_response
-	@default_handler_response.setter
-	def default_handler_response(self, value):
-		self._default_handler_response = value
-
-class TestHandler(Handler):
-	'''Prints input state changes.'''
-	def handle_movement(self, state):
-		print(state)
 		return True
-
-	def handle_bt_1(self, state):
-		print(state)
-		return True
-
-#Input().add_handler(TestHandler(), 'PLAYER')
+	def handle_input(self, state):
+		'''
+		Handle a movement request from the user.
+		@param state: The state of the button. Try state.positive,
+				state.triggered, state.direction - depending on button type
+		'''
+		pass

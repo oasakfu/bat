@@ -181,7 +181,7 @@ class SceneDispatch(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 
 	@staticmethod
 	def call_in_scene(scene, fn, *args, **kwargs):
-		if scene is bge.logic.getCurrentScene():
+		if scene is None or scene is bge.logic.getCurrentScene():
 			# Call immediately.
 			SceneDispatch.log.info("Calling immediate function %s in %s", fn,
 					bge.logic.getCurrentScene())
