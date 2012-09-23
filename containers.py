@@ -16,6 +16,7 @@
 #
 
 import weakref
+import logging
 
 #
 # Containers
@@ -307,6 +308,8 @@ class SafePriorityStack(SafeList):
 	only meant to contain a small number of items.
 	'''
 
+	log = logging.getLogger(__name__ + '.SafePriorityStack')
+
 	def __init__(self):
 		'''Create a new, empty priority queue.'''
 		super(SafePriorityStack, self).__init__()
@@ -322,6 +325,8 @@ class SafePriorityStack(SafeList):
 		          0 <= priority. (Integer)
 		'''
 
+		SafePriorityStack.log.debug("push %s@%s", item, priority)
+
 		if item in self.priorities:
 			self.discard(item)
 
@@ -336,7 +341,7 @@ class SafePriorityStack(SafeList):
 		self.priorities[item] = priority
 
 	def _on_automatic_removal(self, item):
-		print("Auto remove", item)
+		SafePriorityStack.log.debug("Auto remove %s", item)
 		del self.priorities[item]
 
 	def discard(self, item):
@@ -345,7 +350,7 @@ class SafePriorityStack(SafeList):
 		Parameters:
 		key: The key that was used to insert the item.
 		'''
-		print("Discard", item)
+		SafePriorityStack.log.debug("Discard %s", item)
 		try:
 			super(SafePriorityStack, self).remove(item)
 			del self.priorities[item]
@@ -363,6 +368,7 @@ class SafePriorityStack(SafeList):
 		IndexError: if the queue is empty.
 		'''
 
+		SafePriorityStack.log.debug("pop")
 		item = super(SafePriorityStack, self).pop(0)
 		del self.priorities[item]
 		return item

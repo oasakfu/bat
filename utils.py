@@ -79,43 +79,43 @@ def owner(f):
 	'''Decorator. Passes a single argument to a function: the owner of the
 	current controller.'''
 	@wraps(f)
-	def f_new(owner=None):
+	def f_owner(owner=None):
 		if owner == None:
 			owner = bge.logic.getCurrentController().owner
 		elif owner.__class__.__name__ == 'SCA_PythonController':
 			owner = owner.owner
 		return f(owner)
-	return f_new
+	return f_owner
 
 def owner_cls(f):
 	@wraps(f)
-	def f_new(self, owner=None):
+	def f_owner_cls(self, owner=None):
 		if owner == None:
 			owner = bge.logic.getCurrentController().owner
 		elif owner.__class__.__name__ == 'SCA_PythonController':
 			owner = owner.owner
 		return f(self, owner)
-	return f_new
+	return f_owner_cls
 
 def controller(f):
 	'''Decorator. Passes a single argument to a function: the current
 	controller.'''
 	@wraps(f)
-	def f_new(c=None):
+	def f_controller(c=None):
 		if c == None:
 			c = bge.logic.getCurrentController()
 		return f(c)
-	return f_new
+	return f_controller
 
 def controller_cls(f):
 	'''Decorator. Passes a single argument to a function: the current
 	controller.'''
 	@wraps(f)
-	def f_new(self, c=None):
+	def f_controller_cls(self, c=None):
 		if c == None:
 			c = bge.logic.getCurrentController()
 		return f(self, c)
-	return f_new
+	return f_controller_cls
 
 @controller
 def allSensorsPositive(c):
@@ -146,21 +146,21 @@ def someSensorPositive(c):
 def all_sensors_positive(f):
 	'''Decorator. Only calls the function if all sensors are positive.'''
 	@wraps(f)
-	def f_new(*args, **kwargs):
+	def f_all_sensors_positive(*args, **kwargs):
 		if not allSensorsPositive():
 			return
 		return f(*args, **kwargs)
-	return f_new
+	return f_all_sensors_positive
 
 def some_sensors_positive(f):
 	'''Decorator. Only calls the function if one ore more sensors are
 	positive.'''
 	@wraps(f)
-	def f_new(*args, **kwargs):
+	def f_some_sensors_positive(*args, **kwargs):
 		if not someSensorPositive():
 			return
 		return f(*args, **kwargs)
-	return f_new
+	return f_some_sensors_positive
 
 def get_cursor():
 	'''Gets the 'Cursor' object in the current scene. This object can be used

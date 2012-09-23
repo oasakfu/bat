@@ -163,6 +163,8 @@ class GameOb(type):
 	See also BX_GameObject.
 	'''
 
+	log = logging.getLogger(__name__ + '.GameOb')
+
 	def __init__(self, name, bases, attrs):
 		'''Runs just after the class is defined.'''
 #		print("GameOb.__init__(%s, %s, %s, %s)" % (self, name, bases, attrs))
@@ -186,6 +188,10 @@ class GameOb(type):
 		if ob == None:
 			ob = bge.logic.getCurrentController().owner
 
+		GameOb.log.debug("Mutating %s to %s", ob.__class__, self)
+		if 'Class' in ob and not ob['Class'].endswith(self.__name__):
+			GameOb.log.warn("Mutating object specifies class %s, but mutating "
+					"to %s", ob['Class'], self.__name__)
 		orig_name = ob.name
 		if 'template' in ob:
 			ob = bat.utils.replaceObject(ob['template'], ob)
@@ -325,6 +331,7 @@ def mutate(o):
 
 	cls = _get_class(o['Class'])
 	if cls == o.__class__:
+		log.debug("No-op: %s is already mutated", cls)
 		return o
 	else:
 		return cls(o)

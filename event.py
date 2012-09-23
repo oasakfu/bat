@@ -191,7 +191,7 @@ class SceneDispatch(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 		SceneDispatch.log.info("Deferring function call %s from %s to %s", fn,
 				bge.logic.getCurrentScene(), scene)
 		try:
-			dispatcher = scene.objects['BXT_Dispatcher']
+			dispatcher = scene.objects['BXT_Dispatch']
 		except KeyError:
 			raise KeyError("No dispatcher in scene %s. Ensure the group G_BXT "
 					"is linked." % scene)
