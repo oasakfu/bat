@@ -23,7 +23,10 @@ import bat.bats
 import bat.containers
 
 class EventBus(metaclass=bat.bats.Singleton):
-	'''Delivers messages to listeners.'''
+	'''
+	Delivers messages to listeners. The listeners will be notified in the
+	contexts of their own scenes.
+	'''
 
 	_prefix = ''
 
@@ -33,9 +36,14 @@ class EventBus(metaclass=bat.bats.Singleton):
 		self.listeners = bat.containers.SafeSet()
 		self.eventQueue = []
 		self.eventCache = {}
-		self.lastCaller = (None, 0)
 
 	def add_listener(self, listener):
+		'''
+		Registers an object that is to be notified of events. When an event is
+		sent, the listener's on_event(evt) method will be called. That method
+		will be called in the context of the listener's own scene, if it has
+		one.
+		'''
 		EventBus.log.info("Added event listener %s", listener)
 		self.listeners.add(listener)
 
@@ -89,7 +97,11 @@ class EventBus(metaclass=bat.bats.Singleton):
 		Send a message.
 
 		@param event The event to send.
-		@param delay The time to wait, in rendered frames (not logic ticks).
+		@param delay The time to wait, in rendered frames (not logic ticks). If
+				zero, the event will be sent to the listeners immediately.
+				However, listeners that are not in the current scene will
+				receive it next time that scene is active - which may be during
+				the following logic tick.
 		'''
 
 		if delay <= 0:
@@ -100,8 +112,11 @@ class EventBus(metaclass=bat.bats.Singleton):
 	def _notify(self, event):
 		EventBus.log.info("Sending %s", event)
 		for listener in self.listeners.copy():
-			EventBus.log.debug('\ttarget = %s', str(listener))
-			listener.on_event(event)
+			EventBus.log.debug('\ttarget = %s (may get delayed)', str(listener))
+			if hasattr(listener, 'scene'):
+				SceneDispatch.call_in_scene(listener.scene, listener.on_event, event)
+			else:
+				listener.on_event(event)
 		self.eventCache[event.message] = event
 
 	def replay_last(self, target, message):
@@ -151,8 +166,11 @@ class SceneDispatch(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 	'''
 	Calls functions in the context of a particular scene. This is necessary
 	for some BGE operations, such as LibLoad which always loads data into
-	the current scene. To use, make sure the BXT_Dispatcher object is in the
-	target scene, and then call call_in_scene.
+	the current scene. Also, KX_Scene.addObject seems to be buggy when called
+	in the context of another scene (leading to zombie objects).
+
+	To use, make sure the BXT_Dispatcher object is in the target scene, and then
+	call call_in_scene.
 	'''
 
 	log = logging.getLogger(__name__ + '.SceneDispatch')
