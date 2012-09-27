@@ -406,7 +406,11 @@ class JoystickDpadSensor:
 		self.button_flag = button_flag
 
 	def evaluate(self, active_keys, js):
-		return js.hatValues[self.hat_index] & self.button_flag
+		try:
+			return js.hatValues[self.hat_index] & self.button_flag
+		except IndexError:
+			# Joystick may not be plugged in.
+			return False
 
 class JoystickAxisSensor:
 	'''For detecting DPad presses.'''
@@ -414,7 +418,11 @@ class JoystickAxisSensor:
 		self.axis_index = axis_index
 
 	def evaluate(self, active_keys, js):
-		return js.axisValues[self.axis_index] / 32767.0
+		try:
+			return js.axisValues[self.axis_index] / 32767.0
+		except IndexError:
+			# Joystick may not be plugged in.
+			return False
 
 class Handler:
 	'''
