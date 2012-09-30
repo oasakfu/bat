@@ -1,5 +1,5 @@
 #
-# Copyright 2009-2011 Alex Fraser <alex@phatcore.com>
+# Copyright 2009-2012 Alex Fraser <alex@phatcore.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,52 +15,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-import sys
-
 from functools import wraps
 
 import bge
-
-class Logger:
-	'''A logger that write to stdout.'''
-	def __call__(self, *args, **kwargs):
-		print(*args, **kwargs)
-	def write(self, string):
-		sys.stdout.write(string)
-	def flush(self):
-		sys.stdout.flush()
-
-class NullLogger:
-	'''A logger that produces no output.'''
-	def __call__(self, *args, **kwargs):
-		pass
-	def write(self, string):
-		pass
-	def flush(self):
-		pass
-
-def get_logger(visible):
-	if visible:
-		return Logger()
-	else:
-		return NullLogger()
-
-DEBUG = False
-
-def _debug_leaking_objects():
-	pass
-#	import gc
-#	all = gc.get_objects()
-#	try:
-#		for ob in all:
-#			for ref in gc.get_referents([ob]):
-#				if hasattr(ref, 'invalid') and ref.invalid is True:
-#						print('Error: Strong reference from %s %d to invalid %s %d' %
-#							(ob.__class__.__name__, id(ob),
-#							 ref.__class__.__name__, id(ref)))
-#
-#	finally:
-#		all = ob = ref = None
 
 def replaceObject(name, original, time = 0):
 	'''Like bge.types.scene.addObject, but:

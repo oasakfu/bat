@@ -86,15 +86,29 @@ class profile:
 #
 
 def expose(f):
-	'''Expose a method as a top-level function. Must be used in conjunction with
-	the GameOb metaclass.'''
+	'''
+	Expose a method as a top-level function.
+	@see Singleton
+	@see GameOb
+	'''
 	f._expose = True
 	return f
 
 class Singleton(type):
-	'''A metaclass that makes singletons. Methods marked with the expose
+	'''
+	A metaclass that makes singletons. Methods marked with the expose
 	decorator will be promoted to top-level functions, and can therefore be
-	called from a logic brick.'''
+	called from a logic brick.
+
+	If the class has a member called '_prefix', that will be prefixed to the
+	function name. Otherwise, the class name will be the prefix. E.g.
+
+	class Foo(metaclass=bat.bats.Singleton):
+		@bat.bats.expose
+		def update(self):
+			pass
+	# Foo_update() is now a function in the module.
+	'''
 
 	log = logging.getLogger(__name__ + '.Singleton')
 
@@ -134,9 +148,8 @@ class Singleton(type):
 			try:
 				return getattr(self(), methodName)()
 			except:
+				Singleton.log.error('Uncaught exception. Pausing scene.', exc_info=1)
 				bge.logic.getCurrentScene().suspend()
-				bat.utils._debug_leaking_objects()
-				raise
 
 		method_wrapper.__name__ = '%s%s' % (prefix, methodName)
 		method_wrapper.__doc__ = method.__doc__
@@ -151,6 +164,7 @@ class GameOb(type):
 	For example:
 
 	class Foo(bge.types.KX_GameObject, metaclass=bat.bats.GameOb):
+		_prefix=''
 		def __init__(self, old_owner):
 			# Do not use old_owner; it will have been destroyed! Also, you don't
 			# need to call KX_GameObject.__init__.
@@ -159,6 +173,10 @@ class GameOb(type):
 		@bat.bats.expose
 		def update(self):
 			self.worldPosition.z += 1.0
+
+	update() would then be a function in the module; call it from a logic brick,
+	and Foo.update(self) will be called with the controller's owner passed in as
+	'self'.
 
 	See also BX_GameObject.
 	'''
@@ -209,16 +227,20 @@ class GameOb(type):
 				o = bge.logic.getCurrentController().owner
 				return getattr(o, methodName)()
 			except:
+				GameOb.log.error('Uncaught exception. Pausing scene.', exc_info=1)
 				bge.logic.getCurrentScene().suspend()
-				bat.utils._debug_leaking_objects()
-				raise
 
 		method_wrapper.__name__ = '%s%s' % (prefix, methodName)
 		method_wrapper.__doc__ = method.__doc__
 		setattr(module, method_wrapper.__name__, method_wrapper)
 
 class BX_GameObject(metaclass=GameOb):
-	'''Basic convenience extensions to KX_GameObject. Use as a mixin.'''
+	'''
+	Basic convenience extensions to KX_GameObject. Use as a mixin, e.g.
+
+	class Foo(bat.bats.BX_GameObject, bge.types.KX_GameObject):
+		...
+	'''
 
 	def add_state(self, state):
 		'''Add a set of states to this object's state.'''
@@ -244,9 +266,11 @@ class BX_GameObject(metaclass=GameOb):
 
 	@property
 	def scene(self):
-		'''Get the scene that this object exists in. Sometimes this is preferred
-		over bge.logic.getCurrentScene, e.g. if this object is responding to an
-		event sent from another scene.'''
+		'''
+		Get the scene that this object exists in. Sometimes this is preferred
+		over bge.logic.getCurrentScene, e.g. if this object is responding to a
+		function call from another scene.
+		'''
 		try:
 			return self._scene
 		except AttributeError:
@@ -353,6 +377,7 @@ def add_and_mutate_object(scene, ob, other=None, time=0):
 #
 
 class Timekeeper(metaclass=Singleton):
+	'''Counts frames and logic ticks.'''
 
 	_prefix = 'TK_'
 

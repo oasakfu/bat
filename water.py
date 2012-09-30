@@ -1,5 +1,5 @@
 #
-# Copyright 2009-2011 Alex Fraser <alex@phatcore.com>
+# Copyright 2009-2012 Alex Fraser <alex@phatcore.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -32,6 +32,11 @@ ANGLE_INCREMENT = 81.0
 BUBBLE_BIAS = 0.4
 
 class Water(bat.bats.BX_GameObject, bge.types.KX_GameObject):
+	'''
+	An object that provides an upward (buoyancy) force on other objects that
+	touch it.
+	'''
+
 	_prefix = ''
 
 	log = logging.getLogger(__name__ + ".Water")

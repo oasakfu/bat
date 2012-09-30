@@ -372,7 +372,7 @@ class FadeByLinV(Effect):
 		handle.volume *= self.multiplier
 
 class PitchByAngV(Effect):
-	'''Plays a sound loudly when the object is moving fast.'''
+	'''Increases the pitch of a sound the faster an object rotates.'''
 	def __init__(self, ob, scale=0.05, pitchmin=0.8, pitchmax=1.2):
 		self.ob = ob
 		self.scale = scale

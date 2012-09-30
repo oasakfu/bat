@@ -1,5 +1,5 @@
 #
-# Copyright 2009-2011 Alex Fraser <alex@phatcore.com>
+# Copyright 2009-2012 Alex Fraser <alex@phatcore.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -53,12 +53,16 @@ def unlerp(a, b, value):
 	return (value - a) / (b - a)
 
 def smerp(currentDelta, currentValue, target, speedFactor, responsiveness):
-	'''Smooth exponential average interpolation
+	'''
+	Smooth exponential average interpolation
 	For each time step, try to move toward the target by some fraction of
 	the distance (as is the case for normal exponential averages). If this
 	would result in a positive acceleration, take a second exponential
 	average of the acceleration. The resulting motion has smooth acceleration
-	and smooth deceleration, with minimal oscillation.'''
+	and smooth deceleration, with minimal oscillation.
+
+	@see: integrate
+	'''
 
 	targetDelta = (target - currentValue) * speedFactor
 	if (targetDelta * targetDelta > currentDelta * currentDelta):
@@ -112,7 +116,9 @@ def approach_one(x, c):
 	return 1.0 - (1.0 / ((x + (1.0 / c)) * c))
 
 def safe_invert(x, c = 2.0):
-	'''Invert a value, but ensure that the result is not infinity.
+	'''
+	Invert a value, but ensure that the result is not infinity. Only works for
+	positive numbers.
 
 	To visualise this function, try it in gnuplot:
 		f(x, c) = 1.0 / ((x * c) + 1.0)
@@ -266,7 +272,8 @@ class ZKey:
 		return ob.worldPosition.z
 
 def quadNormal(p0, p1, p2, p3):
-	'''Find the normal of a 4-sided face.'''
+	'''Find the normal of a 4-sided face.
+	@deprecated: Use mathutils.geometry.normal'''
 	# Use the diagonals of the face, rather than any of the sides. This ensures
 	# all vertices are accounted for, and doesn't require averaging.
 	va = p0 - p2
@@ -282,7 +289,8 @@ def quadNormal(p0, p1, p2, p3):
 	return normal
 
 def triangleNormal(p0, p1, p2):
-	'''Find the normal of a 3-sided face.'''
+	'''Find the normal of a 3-sided face.
+	@deprecated: Use mathutils.geometry.normal'''
 	va = p1 - p0
 	vb = p2 - p0
 	normal = va.cross(vb)
