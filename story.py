@@ -21,6 +21,8 @@ State machines for driving story.
 
 import time
 import logging
+import inspect
+import os
 
 import bge
 
@@ -525,6 +527,11 @@ class ActDestroy(BaseAct):
 # Steps. These are executed by Characters when their conditions are met and they
 # are at the front of the queue.
 #
+
+def get_caller_info():
+	_, filename, lineno, _, _, _ = inspect.stack()[2]
+	return "%s:%d" % (os.path.basename(filename), lineno)
+
 class State:
 	'''These comprise state machines that may be used to drive a scripted
 	sequence, e.g. a dialogue with a non-player character.
@@ -539,32 +546,40 @@ class State:
 
 	log = logging.getLogger(__name__ + '.State')
 
-	def __init__(self, name=""):
+	def __init__(self, name=None):
+		if name is None:
+			name = get_caller_info()
 		self.name = name
 		self.conditions = []
 		self.actions = []
 		self.transitions = []
 		self.subSteps = []
 
-	def addCondition(self, condition):
+	def add_condition(self, condition):
 		'''Conditions control transition to this state.'''
 		self.conditions.append(condition)
 
-	def addAction(self, action):
+	def add_action(self, action):
 		'''Actions will run when this state becomes active.'''
 		self.actions.append(action)
 
-	def addEvent(self, message, body=None):
+	def add_event(self, message, body=None):
 		'''Convenience method to add an ActEvent action.'''
-		evt = bat.event.Event(message, body)
+		if hasattr(body, 'invalid'):
+			evt = bat.event.WeakEvent(message, body)
+		else:
+			evt = bat.event.Event(message, body)
 		self.actions.append(ActEvent(evt))
 
-	def addWeakEvent(self, message, body):
-		'''Convenience method to add an ActEvent action.'''
-		evt = bat.event.WeakEvent(message, body)
-		self.actions.append(ActEvent(evt))
+	def add_predecessor(self, preceding_state):
+		'''
+		Make this state run after another state.
+		@see: add_successor
+		@see: create_successor
+		'''
+		preceding_state.add_successor(self)
 
-	def addTransition(self, state):
+	def add_successor(self, following_state):
 		'''
 		Transitions are links to other states. During evaluation, the state will
 		progress from this state to one of its transitions when all conditions
@@ -573,22 +588,37 @@ class State:
 		Transitions are evaluated *in order*, i.e. if two transitions both have
 		their conditions met, the one that was added first is progressed to
 		next.
+		@see: add_predecessor
+		@see: create_successor
+		@see: add_sub_step
 		'''
-		self.transitions.append(state)
+		self.transitions.append(following_state)
 
-	def createTransition(self, stateName=""):
+	def create_successor(self, stateName=None):
 		'''Create a new State and add it as a transition of this one.
 		@return: the new state.'''
+		if stateName is None:
+			stateName = get_caller_info()
 		s = State(stateName)
-		self.addTransition(s)
+		self.add_successor(s)
 		return s
 
-	def addSubStep(self, state):
+	def add_sub_step(self, state):
+		'''
+		Add a sub-step to this state. Sub-steps are like regular states, but
+		they are never transitioned to; instead, they are evaluated every frame
+		that the parent is active.
+		@see: create_sub_step
+		@see: add_successor
+		'''
 		self.subSteps.append(state)
 
-	def createSubStep(self, stateName=""):
+	def create_sub_step(self, stateName=""):
+		'''
+		@see: add_sub_step
+		'''
 		s = State(stateName)
-		self.addSubStep(s)
+		self.add_sub_step(s)
 		return s
 
 	def activate(self, c):
@@ -659,7 +689,7 @@ class Chapter(bat.bats.BX_GameObject):
 		# Need one dummy transition before root state to ensure the children of
 		# the root get activated.
 		self.zeroState = State(name="Zero")
-		self.rootState = self.zeroState.createTransition("Root")
+		self.rootState = self.zeroState.create_successor("Root")
 		self.currentState = self.zeroState
 
 	@bat.bats.expose
