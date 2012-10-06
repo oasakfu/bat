@@ -520,8 +520,13 @@ class ActEvent(BaseAct):
 
 class ActDestroy(BaseAct):
 	'''Remove the object from the scene.'''
+	def __init__(self, ob=None, target_descendant=None):
+		self.ob = ob
+		self.target_descendant = target_descendant
+
 	def execute(self, c):
-		c.owner.endObject()
+		ob = self.find_target(c, self.ob, self.target_descendant)
+		ob.endObject()
 
 #
 # Steps. These are executed by Characters when their conditions are met and they
