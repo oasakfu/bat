@@ -447,3 +447,84 @@ class Handler:
 				state.triggered, state.direction - depending on button type
 		'''
 		pass
+
+class DirectionMapper:
+	'''
+	Converts 2D vectors (e.g. from a player's controller) into 3D vectors that
+	can be used to control a character.
+	'''
+
+	log = logging.getLogger(__name__ + '.DirectionMapper')
+
+	def __init__(self):
+		self.up_vec = None
+		self.right_vec = None
+		self.fwd_vec = None
+		self.direction = None
+		self.use_fwd_dir = True
+
+	def update(self, target, impulse_vec):
+		cam = bge.logic.getCurrentScene().active_camera
+		right_view = cam.getAxisVect(bat.bmath.XAXIS)
+		#up_view = cam.getAxisVect(bat.bmath.YAXIS)
+		fwd_view = cam.getAxisVect(bat.bmath.ZAXIS)
+		fwd_view.negate()
+
+		self.update_coord_space(target)
+
+		# Decide which vector to use as a reference. Unfortunately it's not
+		# possible to always use the same vector (e.g. the camera's Z axis),
+		# because the cross product of two parallel vectors is zero.
+		if self.use_fwd_dir:
+			if abs(fwd_view.dot(self.up_vec)) > 0.9:
+				self.use_fwd_dir = False
+				DirectionMapper.log.info("Using right view vector")
+		else:
+			if abs(right_view.dot(self.up_vec)) > 0.9:
+				self.use_fwd_dir = True
+				DirectionMapper.log.info("Using forward view vector")
+
+		if self.use_fwd_dir:
+			right_impulse = fwd_view.cross(self.up_vec)
+			right_impulse.normalize()
+			fwd_impulse = self.up_vec.cross(right_impulse)
+		else:
+			fwd_impulse = self.up_vec.cross(right_view)
+			fwd_impulse.normalize()
+			right_impulse = fwd_impulse.cross(self.up_vec)
+
+		direction = right_impulse * impulse_vec.x
+		direction += fwd_impulse * impulse_vec.y
+		direction.normalize()
+		self.direction = direction
+
+		if DirectionMapper.log.isEnabledFor(20):
+			origin = target.worldPosition
+			bge.render.drawLine(origin, (fwd_impulse * 4) + origin, bat.render.GREEN[0:3])
+			bge.render.drawLine(origin, (right_impulse * 4) + origin, bat.render.RED[0:3])
+			bge.render.drawLine(origin, (direction * 4) + origin, bat.render.WHITE[0:3])
+			#print(direction.magnitude, right_impulse.magnitude, fwd_impulse.magnitude)
+
+class DirectionMapperLocal(DirectionMapper):
+	'''Finds a direction vector on the target's XY plane.'''
+	def update_coord_space(self, target):
+		self.up_vec = target.getAxisVect(bat.bmath.ZAXIS)
+		self.fwd_vec = target.getAxisVect(bat.bmath.YAXIS)
+		self.right_vec = target.getAxisVect(bat.bmath.XAXIS)
+
+	@property
+	def turn_factor(self):
+		'''The fraction of the requested direction that points to the right.'''
+		return self.direction.dot(self.right_vec)
+
+	@property
+	def agreement(self):
+		'''The fraction of the requested direction that points to the front.'''
+		return self.direction.dot(self.fwd_vec)
+
+class DirectionMapperGlobal(DirectionMapper):
+	'''Finds a direction vector on the global XY plane.'''
+	def update_coord_space(self, target):
+		self.up_vec = bat.bmath.ZAXIS
+		self.fwd_vec = bat.bmath.YAXIS
+		self.right_vec = bat.bmath.XAXIS
