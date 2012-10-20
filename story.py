@@ -97,6 +97,21 @@ class CondSensorNot(Condition):
 	def get_short_name(self):
 		return " SN"
 
+class CondAttrEq(Condition):
+	'''Allow the story to progress when an attribute equals a value.'''
+	def __init__(self, name, value, ob=None, target_descendant=None):
+		self.name = name
+		self.value = value
+		self.target_descendant = target_descendant
+		self.ob = ob
+
+	def evaluate(self, c):
+		ob = self.find_source(c, self.ob, self.target_descendant)
+		return getattr(ob, self.name) == self.value
+
+	def get_short_name(self):
+		return "AE"
+
 class CondPropertyGE(Condition):
 	'''Allow the story to progress when a property matches an inequality. In
 	this case, when the property is greater than or equal to the given value.'''
@@ -315,6 +330,36 @@ class ActStoreSet(BaseAct):
 	def execute(self, c):
 		bat.store.put(self.path, self.value)
 
+class ActAttrSet(BaseAct):
+	'''Set a Python attribute on the object.'''
+	def __init__(self, name, value, ob=None, target_descendant=None):
+		self.name = name
+		self.value = value
+		self.target_descendant = target_descendant
+		self.ob = ob
+
+	def execute(self, c):
+		ob = self.find_target(c, self.ob, self.target_descendant)
+		setattr(ob, self.name, self.value)
+
+	def __str__(self):
+		return "ActAttrSet(%s)" % self.name
+
+class ActPropSet(BaseAct):
+	'''Set a game property on the object.'''
+	def __init__(self, name, value, ob=None, target_descendant=None):
+		self.name = name
+		self.value = value
+		self.target_descendant = target_descendant
+		self.ob = ob
+
+	def execute(self, c):
+		ob = self.find_target(c, self.ob, self.target_descendant)
+		ob[self.name] = self.value
+
+	def __str__(self):
+		return "ActPropSet(%s)" % self.name
+
 class ActActuate(BaseAct):
 	'''Activate an actuator.'''
 	def __init__(self, actuatorName):
@@ -328,7 +373,7 @@ class ActActuate(BaseAct):
 
 class ActAction(BaseAct):
 	'''Plays an animation.'''
-	def __init__(self, action, start, end, layer, targetDescendant=None,
+	def __init__(self, action, start, end, layer=0, targetDescendant=None,
 			play_mode=bge.logic.KX_ACTION_MODE_PLAY, ob=None, blendin=0.0):
 		self.action = action
 		self.start = start
