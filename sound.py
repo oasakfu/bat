@@ -25,7 +25,7 @@ import bge
 import bat.containers
 import bat.bmath
 
-FADE_RATE = 0.002
+FADE_RATE = 0.01
 
 _aud_locked = False
 def aud_lock(f):
@@ -128,9 +128,11 @@ class Jukebox(metaclass=bat.bats.Singleton):
 		self.current_track = track
 		print(self.current_track)
 
-	def stop(self, ob_or_sample):
+	def stop(self, ob_or_sample, fade_rate=None):
 		for track in self.stack:
 			if track.ob is ob_or_sample or track.sample is ob_or_sample:
+				if fade_rate is not None:
+					track.fade_rate = fade_rate
 				self.stack.discard(track)
 				self.update()
 				return

@@ -147,7 +147,6 @@ class CondActionGE(Condition):
 
 		self.tap = tap
 		self.triggered = False
-		self.lastFrame = frame - 1
 
 	def evaluate(self, c):
 		ob = self.find_source(c, self.ob, self.descendant_name)
@@ -158,12 +157,14 @@ class CondActionGE(Condition):
 			return cfra >= self.frame
 		else:
 			# Memory (loop) mode
-			if self.lastFrame > cfra:
+			if self.triggered and cfra < self.frame:
 				self.triggered = False
-			if not self.triggered and cfra >= self.frame:
+				return False
+			elif not self.triggered and cfra >= self.frame:
 				self.triggered = True
 				return True
-			self.lastFrame = cfra
+			else:
+				return False
 
 	def get_short_name(self):
 		return "AGE"
@@ -517,13 +518,14 @@ class ActMusicStop(BaseAct):
 
 	Music is associated with a real object. See ActMusicPlay for details.
 	'''
-	def __init__(self, ob=None, target_descendant=None):
+	def __init__(self, fade_rate=None, ob=None, target_descendant=None):
+		self.fade_rate = fade_rate
 		self.target_descendant = target_descendant
 		self.ob = ob
 
 	def execute(self, c):
 		ob = self.find_target(c, self.ob, self.target_descendant)
-		bat.sound.Jukebox().stop(ob)
+		bat.sound.Jukebox().stop(ob, self.fade_rate)
 
 	def __str__(self):
 		return "ActMusicStop()"
