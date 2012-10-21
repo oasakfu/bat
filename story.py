@@ -491,10 +491,11 @@ class ActMusicPlay(BaseAct):
 	object. To use the current object as the target, set ob=None and
 	target_descendant=None.
 	'''
-	def __init__(self, *filepaths, volume=1.0, loop=True, ob=None,
-			target_descendant=None, priority=2):
+	def __init__(self, *filepaths, volume=1.0, loop=True, introfile=None,
+			ob=None, target_descendant=None, priority=2):
 
 		self.filepaths = filepaths
+		self.introfile = introfile
 		self.volume = volume
 		self.loop = loop
 		self.target_descendant = target_descendant
@@ -506,7 +507,7 @@ class ActMusicPlay(BaseAct):
 		# important for the story.
 		ob = self.find_target(c, self.ob, self.target_descendant)
 		bat.sound.Jukebox().play_files(ob, self.priority, *self.filepaths,
-				volume=self.volume)
+				introfile=self.introfile, volume=self.volume)
 
 	def __str__(self):
 		return "ActMusicPlay(%s)" % str(self.filepaths)
