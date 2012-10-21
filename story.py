@@ -576,6 +576,101 @@ class ActDestroy(BaseAct):
 		ob = self.find_target(c, self.ob, self.target_descendant)
 		ob.endObject()
 
+
+class AnimBuilder:
+	'''
+	Simplifies creation of animation steps in a story graph. AnimBuilders are
+	bound to an object and action; sections of the action can then be added to
+	the story by calling the play, loop or recall methods.
+	'''
+	def __init__(self, action, layer=0, blendin=0, ob=None, target_descendant=None):
+		self.action = action
+		self.layer = layer
+		self.blendin = blendin
+		self.ob = ob
+		self.target_descendant = target_descendant
+		self.named_actions = {}
+
+	def play(self, state, start, end, loop_end=None, blendin=None):
+		'''
+		Add a section of this animation to a state.
+		@param start: The start frame of the section.
+		@param end: The end frame of the animation.
+		@param loop_end: If not None, the end frame of the loop. The loop will
+				play after the first nominated section of the animation.
+
+		E.g. play(s, 1, 40, 90) will add an ActAction action to state s. The
+		animation will play from frame 1 to 40, and will then loop from frame 40
+		to 90.
+		'''
+		if blendin is None:
+			blendin = self.blendin
+
+		act = bat.story.ActAction(self.action, start, end, layer=self.layer,
+				blendin=blendin, ob=self.ob,
+				targetDescendant=self.target_descendant)
+
+		state.add_action(act)
+		if loop_end is not None:
+			self.loop(state, end, loop_end, after=end, blendin=blendin)
+
+	def loop(self, state, loop_start, loop_end, after=None, blendin=None):
+		'''
+		Add a looping section of an animation to a state.
+		@param loop_start: The start frame of the loop.
+		@param loop_end: The end frame of the loop.
+		@param after: If not None, the animation will wait until the currently-
+				playing animation reaches this frame number.
+		'''
+		if blendin is None:
+			blendin = self.blendin
+
+		act = bat.story.ActAction(self.action, loop_start, loop_end,
+				self.layer, blendin=blendin,
+				play_mode=bge.logic.KX_ACTION_MODE_LOOP,
+				ob=self.ob, targetDescendant=self.target_descendant)
+		self._enqueue(state, act, after)
+
+	def store(self, name, start, end, loop=False, blendin=None):
+		'''
+		Bake an animation segment so it can be reused easily.
+		@param name: The name of this segment.
+		@param start: The start frame of the segment.
+		@param end: The end frame of the segment.
+		@param loop: Whether the animation should loop.
+		'''
+		if blendin is None:
+			blendin = self.blendin
+
+		if loop:
+			play_mode = bge.logic.KX_ACTION_MODE_LOOP
+		else:
+			play_mode = bge.logic.KX_ACTION_MODE_PLAY
+
+		act = bat.story.ActAction(self.action, start, end, layer=self.layer,
+				blendin=blendin, play_mode=play_mode, ob=self.ob,
+				targetDescendant=self.target_descendant)
+		self.named_actions[name] = act
+
+	def recall(self, state, name, after=None):
+		'''
+		Add a stored animation segment to a state.
+		@param state: The state to add the action to.
+		@param after: If not None, the animation will wait until the currently-
+				playing animation reaches this frame number.
+		'''
+		act = self.named_actions[name]
+		self._enqueue(state, act, after)
+
+	def _enqueue(self, state, action, after):
+		if after is not None:
+			sub = state.create_sub_step()
+			sub.add_condition(bat.story.CondActionGE(0, after,
+					targetDescendant=self.target_descendant, tap=True))
+			sub.add_action(action)
+		else:
+			state.add_action(action)
+
 #
 # Steps. These are executed by Characters when their conditions are met and they
 # are at the front of the queue.
