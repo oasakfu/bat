@@ -469,12 +469,17 @@ def once_per_tick(f):
 #
 
 class Counter:
-	'''Counts the frequency of objects. This should only be used temporarily and
-	then thrown away, as it keeps hard references to objects.
+	'''
+	Counts the frequency of objects. This should only be used temporarily and
+	then thrown away, as it keeps hard references to objects. Alternatively,
+	call __init__ again to reset the state.
 	'''
 
 	def __init__(self):
-		self.map = {}
+		try:
+			self.map.clear()
+		except AttributeError:
+			self.map = {}
 		self.mode = None
 		self.max = 0
 		self.n = 0
