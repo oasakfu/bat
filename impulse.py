@@ -512,16 +512,6 @@ class DirectionMapperLocal(DirectionMapper):
 		self.fwd_vec = target.getAxisVect(bat.bmath.YAXIS)
 		self.right_vec = target.getAxisVect(bat.bmath.XAXIS)
 
-	@property
-	def turn_factor(self):
-		'''The fraction of the requested direction that points to the right.'''
-		return self.direction.dot(self.right_vec)
-
-	@property
-	def agreement(self):
-		'''The fraction of the requested direction that points to the front.'''
-		return self.direction.dot(self.fwd_vec)
-
 class DirectionMapperGlobal(DirectionMapper):
 	'''Finds a direction vector on the global XY plane.'''
 	def update_coord_space(self, target):
