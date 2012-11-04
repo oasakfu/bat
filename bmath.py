@@ -50,7 +50,11 @@ def lerp(a, b, fac):
 
 def unlerp(a, b, value):
 	'''Find how far between two numbers a value is.'''
-	return (value - a) / (b - a)
+	if a.__class__ == mathutils.Vector:
+		_, frac = mathutils.geometry.intersect_point_line(value, a, b)
+		return frac
+	else:
+		return (value - a) / (b - a)
 
 def smerp(currentDelta, currentValue, target, speedFactor, responsiveness):
 	'''

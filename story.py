@@ -344,7 +344,33 @@ class ActAttrSet(BaseAct):
 		setattr(ob, self.name, self.value)
 
 	def __str__(self):
-		return "ActAttrSet(%s)" % self.name
+		return "ActAttrSet(%s <- %s)" % (self.name, self.value)
+
+class ActAttrLerp(BaseAct):
+	'''Interpolate an attribute between two values.'''
+	def __init__(self, name, a, b, duration, clamp=True, ob=None, target_descendant=None):
+		self.name = name
+		self.a = a
+		self.b = b
+		self.rate = duration / bge.logic.getLogicTicRate()
+		self.clamp= clamp
+		self.target_descendant = target_descendant
+		self.ob = ob
+
+	def execute(self, c):
+		ob = self.find_target(c, self.ob, self.target_descendant)
+		val = getattr(ob, self.name)
+		frac = bat.bmath.unlerp(self.a, self.b, val)
+		frac += self.rate
+		if self.clamp and frac < 0:
+			frac = 0
+		if frac > 1:
+			frac = 1
+		val = bat.bmath.lerp(self.a, self.b, frac)
+		setattr(ob, self.name, val)
+
+	def __str__(self):
+		return "ActAttrLerp(%s <- %s - %s)" % (self.name, self.a, self.b)
 
 class ActPropSet(BaseAct):
 	'''Set a game property on the object.'''
@@ -359,7 +385,7 @@ class ActPropSet(BaseAct):
 		ob[self.name] = self.value
 
 	def __str__(self):
-		return "ActPropSet(%s)" % self.name
+		return "ActPropSet(%s <- %s)" % (self.name, self.value)
 
 class ActActuate(BaseAct):
 	'''Activate an actuator.'''
@@ -792,7 +818,7 @@ class State:
 		'''Run all actions associated with this state.'''
 		for act in self.actions:
 			try:
-				State.log.info('%s', act)
+				State.log.debug('%s', act)
 				act.execute(c)
 			except Exception:
 				State.log.warn('Action %s failed', act, exc_info=1)
