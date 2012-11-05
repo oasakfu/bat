@@ -56,6 +56,28 @@ def unlerp(a, b, value):
 	else:
 		return (value - a) / (b - a)
 
+class LinearInterpolator:
+	'''Calculates a linear interpolation in discrete steps.'''
+	def __init__(self, a, b, rate):
+		self.a = a
+		self.b = b
+		self.rate = rate
+		self.clamp = clamp
+
+	@staticmethod
+	def from_duration(a, b, duration):
+		rate = 1 / (bge.logic.getLogicTicRate() * duration)
+		return LinearInterpolator(a, b, rate)
+
+	def interpolate(self, current_value):
+		frac = unlerp(self.a, self.b, current_value)
+		frac += self.rate
+		if self.clamp and frac < 0:
+			frac = 0
+		if frac > 1:
+			frac = 1
+		return bat.bmath.lerp(self.a, self.b, frac)
+
 def smerp(currentDelta, currentValue, target, speedFactor, responsiveness):
 	'''
 	Smooth exponential average interpolation

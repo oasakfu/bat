@@ -348,26 +348,22 @@ class ActAttrSet(BaseAct):
 
 class ActAttrLerp(BaseAct):
 	'''Interpolate an attribute between two values.'''
+
+	log = logging.getLogger(__name__ + '.ActAttrLerp')
+
 	def __init__(self, name, a, b, duration, clamp=True, ob=None, target_descendant=None):
 		self.name = name
-		self.a = a
-		self.b = b
-		self.rate = duration / bge.logic.getLogicTicRate()
-		self.clamp= clamp
+		self.interpolator = bat.bmath.LinearInterpolator.from_duration(a, b, duration)
+		self.interpolator.clamp = clamp
 		self.target_descendant = target_descendant
 		self.ob = ob
 
 	def execute(self, c):
 		ob = self.find_target(c, self.ob, self.target_descendant)
 		val = getattr(ob, self.name)
-		frac = bat.bmath.unlerp(self.a, self.b, val)
-		frac += self.rate
-		if self.clamp and frac < 0:
-			frac = 0
-		if frac > 1:
-			frac = 1
-		val = bat.bmath.lerp(self.a, self.b, frac)
-		setattr(ob, self.name, val)
+		new_val = self.interpolator.interpolate(val)
+		ActAttrLerp.log.debug("%s = %s -> %s", self.name, val, new_val)
+		setattr(ob, self.name, new_val)
 
 	def __str__(self):
 		return "ActAttrLerp(%s <- %s - %s)" % (self.name, self.a, self.b)
@@ -386,6 +382,28 @@ class ActPropSet(BaseAct):
 
 	def __str__(self):
 		return "ActPropSet(%s <- %s)" % (self.name, self.value)
+
+class ActPropLerp(BaseAct):
+	'''Interpolate a property between two values.'''
+
+	log = logging.getLogger(__name__ + '.ActPropLerp')
+
+	def __init__(self, name, a, b, duration, clamp=True, ob=None, target_descendant=None):
+		self.name = name
+		self.interpolator = bat.bmath.LinearInterpolator.from_duration(a, b, duration)
+		self.interpolator.clamp = clamp
+		self.target_descendant = target_descendant
+		self.ob = ob
+
+	def execute(self, c):
+		ob = self.find_target(c, self.ob, self.target_descendant)
+		val = ob[self.name]
+		new_val = self.interpolator.interpolate(val)
+		ActPropLerp.log.debug("%s = %s -> %s", self.name, val, new_val)
+		ob[self.name] = new_val
+
+	def __str__(self):
+		return "ActPropLerp(%s <- %s - %s)" % (self.name, self.a, self.b)
 
 class ActActuate(BaseAct):
 	'''Activate an actuator.'''
