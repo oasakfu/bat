@@ -37,7 +37,7 @@ def owner(f):
 	current controller.'''
 	@wraps(f)
 	def f_owner(owner=None):
-		if owner == None:
+		if owner is None:
 			owner = bge.logic.getCurrentController().owner
 		elif owner.__class__.__name__ == 'SCA_PythonController':
 			owner = owner.owner
@@ -47,7 +47,7 @@ def owner(f):
 def owner_cls(f):
 	@wraps(f)
 	def f_owner_cls(self, owner=None):
-		if owner == None:
+		if owner is None:
 			owner = bge.logic.getCurrentController().owner
 		elif owner.__class__.__name__ == 'SCA_PythonController':
 			owner = owner.owner
@@ -59,7 +59,7 @@ def controller(f):
 	controller.'''
 	@wraps(f)
 	def f_controller(c=None):
-		if c == None:
+		if c is None:
 			c = bge.logic.getCurrentController()
 		return f(c)
 	return f_controller
@@ -69,7 +69,7 @@ def controller_cls(f):
 	controller.'''
 	@wraps(f)
 	def f_controller_cls(self, c=None):
-		if c == None:
+		if c is None:
 			c = bge.logic.getCurrentController()
 		return f(self, c)
 	return f_controller_cls

@@ -50,7 +50,7 @@ def weakprop(name):
 			value = None
 			if ref != None:
 				value = ref()
-				if value == None:
+				if value is None:
 					setattr(slf, hiddenName, None)
 				elif hasattr(value, 'invalid') and value.invalid:
 					setattr(slf, hiddenName, None)
@@ -58,7 +58,7 @@ def weakprop(name):
 			return value
 
 		def wp_setter(slf, value):
-			if value == None:
+			if value is None:
 				setattr(slf, hiddenName, None)
 			else:
 				ref = weakref.ref(value)

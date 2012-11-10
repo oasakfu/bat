@@ -136,7 +136,7 @@ class Water(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 			1					# xray
 		)
 
-		if ob == None:
+		if ob is None:
 			# No hit; object is not submerged.
 			Water.log.debug("%s is not submerged in %s", actor, self)
 			return 0.0

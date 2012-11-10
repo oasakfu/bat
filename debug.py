@@ -32,6 +32,6 @@ def print_all_trees(c):
 		return
 
 	sce = bge.logic.getCurrentScene()
-	roots = [ob for ob in sce.objects if ob.parent == None]
+	roots = [ob for ob in sce.objects if ob.parent is None]
 	for ob in roots:
 		print_tree(ob)

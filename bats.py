@@ -32,7 +32,7 @@ prof = None
 def _print_stats(c):
 	if not c.sensors['sInfo'].positive:
 		return
-	if prof == None:
+	if prof is None:
 		return
 
 	def timekey(stat):
@@ -135,7 +135,7 @@ class Singleton(type):
 		'''Provide the current game object as an argument to the constructor.
 		Runs when the class is instantiated.'''
 #		print("Singleton.__call__(%s)" % (self))
-		if self.instance == None:
+		if self.instance is None:
 			self.instance = super(Singleton, self).__call__()
 		return self.instance
 
@@ -203,7 +203,7 @@ class GameOb(type):
 		'''Provide the current game object as an argument to the constructor.
 		Runs when the class is instantiated.'''
 #		print("GameOb.__call__(%s, %s)" % (self, ob))
-		if ob == None:
+		if ob is None:
 			ob = bge.logic.getCurrentController().owner
 
 		GameOb.log.debug("Mutating %s to %s", ob.__class__, self)
@@ -292,7 +292,7 @@ class BX_GameObject(metaclass=GameOb):
 			for child in objects:
 				matches = True
 				for (name, value) in propCriteria:
-					if name in child and (value == None or child[name] == value):
+					if name in child and (value is None or child[name] == value):
 						continue
 					else:
 						matches = False
@@ -364,7 +364,7 @@ def add_and_mutate_object(scene, ob, other=None, time=0):
 	'''Add an object to the scene, and mutate it according to its Class
 	property.'''
 
-	if other == None:
+	if other is None:
 		other = ob
 	log.debug("Adding and mutating %s at %s in scene %s", ob, other, scene)
 	log.debug("Active: %s, Inactive: %s", ob in scene.objects,
