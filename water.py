@@ -313,7 +313,8 @@ class Water(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 				# hierarchy this frame. Unlikely, but it can happen!
 				self.set_defaults(actor)
 
-				root['CurrentBuoyancy'] = min(actor['CurrentBuoyancy'], root['Buoyancy'])
+				buoyancy_fract = actor['CurrentBuoyancy'] / actor['Buoyancy']
+				root['CurrentBuoyancy'] = buoyancy_fract * root['Buoyancy']
 				root['Oxygen'] = actor['Oxygen']
 				self.floatingActors.add(root)
 
