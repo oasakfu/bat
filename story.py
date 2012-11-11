@@ -610,6 +610,23 @@ class ActEvent(BaseAct):
 	def __str__(self):
 		return "ActEvent(%s)" % self.event.message
 
+class ActEventOb(BaseAct):
+	'''Fire an event, using this object or a specified object as the body.'''
+	def __init__(self, message, delay=0, ob=None, target_descendant=None):
+		self.message = message
+		self.delay = delay
+		self.ob = ob
+		self.target_descendant = target_descendant
+
+	def execute(self, c):
+		ob = self.find_target(c, self.ob, self.target_descendant)
+		evt = bat.event.WeakEvent(self.message, ob)
+		evt.send(delay=self.delay)
+		bat.event.EventBus().notify(self.event)
+
+	def __str__(self):
+		return "ActEventOb(%s)" % self.event.message
+
 class ActDestroy(BaseAct):
 	'''Remove the object from the scene.'''
 	def __init__(self, ob=None, target_descendant=None):
