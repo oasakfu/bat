@@ -366,7 +366,7 @@ class ActAttrLerp(BaseAct):
 		setattr(ob, self.name, new_val)
 
 	def __str__(self):
-		return "ActAttrLerp(%s <- %s - %s)" % (self.name, self.a, self.b)
+		return "ActAttrLerp(%s <- %s - %s)" % (self.name, self.interpolator.a, self.interpolator.b)
 
 class ActPropSet(BaseAct):
 	'''Set a game property on the object.'''
