@@ -144,6 +144,14 @@ class Input(metaclass=bat.bats.Singleton):
 		if self.max_seq_len < len(sequence):
 			self.max_seq_len = len(sequence)
 
+# Source constants can be used to determine which devices caused a button to
+# become active.
+SRC_NONE = 0
+SRC_KEYBOARD = 1<<0
+SRC_JOYSTICK = 1<<1
+SRC_JOYSTICK_AXIS = 1<<2
+SRC_MOUSE = 1<<3
+
 class Button:
 	'''A simple button (0 dimensions).'''
 
@@ -156,6 +164,7 @@ class Button:
 
 		self.positive = False
 		self.triggered = False
+		self.source = SRC_NONE
 
 	@property
 	def activated(self):
@@ -168,10 +177,11 @@ class Button:
 
 	def update(self, js):
 		positive = False
+		src = SRC_NONE
 		for s in self.sensors:
 			if s.evaluate(bge.logic.keyboard.active_events, js):
 				positive = True
-				break
+				src |= s.source
 
 		if positive != self.positive:
 			self.triggered = True
@@ -179,6 +189,7 @@ class Button:
 			Button.log.debug("%s", self)
 		else:
 			self.triggered = False
+		self.source = src
 
 	def get_char(self):
 		if self.activated:
@@ -189,6 +200,8 @@ class Button:
 	def __str__(self):
 		return "Button %s - positive: %s, triggered: %s" % (self.name, 
 				self.positive, self.triggered)
+
+AXIS_EPSILON = 0.01
 
 class DPad1D:
 	'''
@@ -211,18 +224,25 @@ class DPad1D:
 		self.bias = 0.0
 		self.dominant = None
 		self.triggered = False
+		self.source = SRC_NONE
 
 	def update(self, js):
 		self.next.update(js)
 		self.prev.update(js)
 
+		src = SRC_NONE
 		x = 0.0
 		if self.next.positive:
+			src |= self.next.source
 			x += 1.0
 		if self.prev.positive:
+			src |= self.prev.source
 			x -= 1.0
 		for axis in self.axes:
-			x += axis.evaluate(bge.logic.keyboard.active_events, js)
+			val = axis.evaluate(bge.logic.keyboard.active_events, js)
+			if abs(val) > AXIS_EPSILON:
+				src |= axis.source
+				x += val
 
 		if x > 1.0:
 			x = 1.0
@@ -230,6 +250,7 @@ class DPad1D:
 			x = -1.0
 
 		self.direction = x
+		self.source = src
 
 		self.find_dominant_direction()
 
@@ -291,6 +312,7 @@ class DPad2D:
 		self.triggered = False
 		self.triggered_repeat = False
 		self.repeat_delay = 0
+		self.source = SRC_NONE
 
 	def update(self, js):
 		self.up.update(js)
@@ -298,14 +320,20 @@ class DPad2D:
 		self.left.update(js)
 		self.right.update(js)
 
+		src = SRC_NONE
 		y = 0.0
 		if self.up.positive:
+			src |= self.up.source
 			y += 1.0
 		if self.down.positive:
+			src |= self.down.source
 			y -= 1.0
 		for axis in self.yaxes:
 			# Note: Invert Y-axis
-			y -= axis.evaluate(bge.logic.keyboard.active_events, js)
+			val = axis.evaluate(bge.logic.keyboard.active_events, js)
+			if abs(val) > AXIS_EPSILON:
+				src |= axis.source
+				y -= val
 
 		if y > 1.0:
 			y = 1.0
@@ -314,11 +342,16 @@ class DPad2D:
 
 		x = 0.0
 		if self.right.positive:
+			src |= self.right.source
 			x += 1.0
 		if self.left.positive:
+			src |= self.left.source
 			x -= 1.0
 		for axis in self.xaxes:
-			x += axis.evaluate(bge.logic.keyboard.active_events, js)
+			val = axis.evaluate(bge.logic.keyboard.active_events, js)
+			if abs(val) > AXIS_EPSILON:
+				src |= axis.source
+				x += val
 
 		if x > 1.0:
 			x = 1.0
@@ -327,6 +360,7 @@ class DPad2D:
 
 		self.direction.x = x
 		self.direction.y = y
+		self.source = src
 
 		self.find_dominant_direction()
 
@@ -385,6 +419,8 @@ class DPad2D:
 
 class KeyboardSensor:
 	'''For keyboard keys.'''
+	source = SRC_KEYBOARD
+
 	def __init__(self, key):
 		self.key = key
 
@@ -393,6 +429,8 @@ class KeyboardSensor:
 
 class JoystickButtonSensor:
 	'''For regular joystick buttons.'''
+	source = SRC_JOYSTICK
+
 	def __init__(self, button):
 		self.button = button
 
@@ -401,6 +439,8 @@ class JoystickButtonSensor:
 
 class JoystickDpadSensor:
 	'''For detecting DPad presses.'''
+	source = SRC_JOYSTICK
+
 	def __init__(self, hat_index, button_flag):
 		self.hat_index = hat_index
 		self.button_flag = button_flag
@@ -414,6 +454,8 @@ class JoystickDpadSensor:
 
 class JoystickAxisSensor:
 	'''For detecting DPad presses.'''
+	source = SRC_JOYSTICK | SRC_JOYSTICK_AXIS
+
 	def __init__(self, axis_index):
 		self.axis_index = axis_index
 
@@ -448,19 +490,44 @@ class Handler:
 		'''
 		pass
 
-class DirectionMapper:
+class DirectionMapperLocal:
 	'''
 	Converts 2D vectors (e.g. from a player's controller) into 3D vectors that
 	can be used to control a character.
+
+	This type returns the forward vector of the character.
 	'''
 
-	log = logging.getLogger(__name__ + '.DirectionMapper')
+	log = logging.getLogger(__name__ + '.DirectionMapperLocal')
+
+	def __init__(self):
+		self.direction = None
+
+	def update(self, target, impulse_vec):
+		fwd_impulse = target.getAxisVect(bat.bmath.YAXIS)
+		right_impulse = target.getAxisVect(bat.bmath.XAXIS)
+		direction = right_impulse * impulse_vec.x
+		direction += fwd_impulse * impulse_vec.y
+		direction.normalize()
+		self.direction = direction
+
+class DirectionMapperView:
+	'''
+	Converts 2D vectors (e.g. from a player's controller) into 3D vectors that
+	can be used to control a character.
+
+	This type returns the direction that best matches the screen vector, i.e.
+	y = up, x = right.
+	'''
+
+	log = logging.getLogger(__name__ + '.DirectionMapperView')
 
 	def __init__(self):
 		self.up_vec = None
 		self.right_vec = None
 		self.fwd_vec = None
 		self.direction = None
+		# Stateful flag, used to avoid singularities.
 		self.use_fwd_dir = True
 
 	def update(self, target, impulse_vec):
@@ -478,11 +545,11 @@ class DirectionMapper:
 		if self.use_fwd_dir:
 			if abs(fwd_view.dot(self.up_vec)) > 0.9:
 				self.use_fwd_dir = False
-				DirectionMapper.log.info("Using right view vector")
+				DirectionMapperView.log.info("Using right view vector")
 		else:
 			if abs(right_view.dot(self.up_vec)) > 0.9:
 				self.use_fwd_dir = True
-				DirectionMapper.log.info("Using forward view vector")
+				DirectionMapperView.log.info("Using forward view vector")
 
 		if self.use_fwd_dir:
 			right_impulse = fwd_view.cross(self.up_vec)
@@ -498,21 +565,21 @@ class DirectionMapper:
 		direction.normalize()
 		self.direction = direction
 
-		if DirectionMapper.log.isEnabledFor(20):
+		if DirectionMapperView.log.isEnabledFor(logging.INFO):
 			origin = target.worldPosition
 			bge.render.drawLine(origin, (fwd_impulse * 4) + origin, bat.render.GREEN[0:3])
 			bge.render.drawLine(origin, (right_impulse * 4) + origin, bat.render.RED[0:3])
 			bge.render.drawLine(origin, (direction * 4) + origin, bat.render.WHITE[0:3])
 			#print(direction.magnitude, right_impulse.magnitude, fwd_impulse.magnitude)
 
-class DirectionMapperLocal(DirectionMapper):
+class DirectionMapperViewLocal(DirectionMapperView):
 	'''Finds a direction vector on the target's XY plane.'''
 	def update_coord_space(self, target):
 		self.up_vec = target.getAxisVect(bat.bmath.ZAXIS)
 		self.fwd_vec = target.getAxisVect(bat.bmath.YAXIS)
 		self.right_vec = target.getAxisVect(bat.bmath.XAXIS)
 
-class DirectionMapperGlobal(DirectionMapper):
+class DirectionMapperViewGlobal(DirectionMapperView):
 	'''Finds a direction vector on the global XY plane.'''
 	def update_coord_space(self, target):
 		self.up_vec = bat.bmath.ZAXIS
