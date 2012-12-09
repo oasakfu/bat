@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
+import sys
 
 '''
 State machines for driving story.
@@ -71,7 +72,7 @@ class CNot(Condition):
 		return not self.wrapped.evaluate(c)
 
 	def get_short_name(self):
-		return self.wrapped.get_short_name()
+		return "!%s" % self.wrapped.get_short_name()
 
 class CondSensor(Condition):
 	'''Allow the story to progress when a particular sensor is true.'''
@@ -83,7 +84,7 @@ class CondSensor(Condition):
 		return s.positive
 
 	def get_short_name(self):
-		return " SE"
+		return "Sens(%s)" % self.Name
 
 class CondSensorNot(Condition):
 	'''Allow the story to progress when a particular sensor is false.'''
@@ -95,7 +96,7 @@ class CondSensorNot(Condition):
 		return not s.positive
 
 	def get_short_name(self):
-		return " SN"
+		return "!Sens(%s)" % self.Name
 
 class CondAttrEq(Condition):
 	'''Allow the story to progress when an attribute equals a value.'''
@@ -110,7 +111,7 @@ class CondAttrEq(Condition):
 		return getattr(ob, self.name) == self.value
 
 	def get_short_name(self):
-		return "AE"
+		return "AttrEq(%s, %s)" % (self.name, self.value)
 
 class CondPropertyGE(Condition):
 	'''Allow the story to progress when a property matches an inequality. In
@@ -123,9 +124,11 @@ class CondPropertyGE(Condition):
 		return c.owner[self.Name] >= self.Value
 
 	def get_short_name(self):
-		return "PGE"
+		return "PropGE(%s, %s)" % (self.Name, self.Value)
 
 class CondActionGE(Condition):
+	FRAME_EPSILON = 0.01
+
 	def __init__(self, layer, frame, tap=False, ob=None, targetDescendant=None):
 		'''
 		@param layer: The animation layer to watch.
@@ -151,7 +154,7 @@ class CondActionGE(Condition):
 	def evaluate(self, c):
 		ob = self.find_source(c, self.ob, self.descendant_name)
 
-		cfra = ob.getActionFrame(self.layer)
+		cfra = ob.getActionFrame(self.layer) + CondActionGE.FRAME_EPSILON
 		if not self.tap:
 			# Simple mode
 			return cfra >= self.frame
@@ -167,7 +170,7 @@ class CondActionGE(Condition):
 				return False
 
 	def get_short_name(self):
-		return "AGE"
+		return "ActGE(%s)" % self.frame
 
 class CondEvent(Condition):
 	'''
@@ -201,7 +204,7 @@ class CondEvent(Condition):
 		return self.triggered
 
 	def get_short_name(self):
-		return " EV"
+		return "Evt(%s)" % self.message
 
 class CondEventEq(Condition):
 	'''
@@ -233,7 +236,7 @@ class CondEventEq(Condition):
 		return self.triggered
 
 	def get_short_name(self):
-		return " EE"
+		return "EvtEQ(%s, %s)" % (self.message, self.body)
 
 # This cannot be replaced by CNot(CondEventEq)
 class CondEventNe(Condition):
@@ -267,7 +270,7 @@ class CondEventNe(Condition):
 		return self.triggered
 
 	def get_short_name(self):
-		return "ENE"
+		return "EvtNE(%s, %s)" % (self.message, self.body)
 
 class CondStore(Condition):
 	def __init__(self, path, value, default=None):
@@ -279,7 +282,7 @@ class CondStore(Condition):
 		return self.value == bat.store.get(self.path, self.default)
 
 	def get_short_name(self):
-		return "StE"
+		return "StoreEQ(%s, %s)" % (self.path, self.value)
 
 class CondWait(Condition):
 	'''A condition that waits for a certain time after being enabled.'''
@@ -298,7 +301,7 @@ class CondWait(Condition):
 		return time.time() - self.duration > self.start
 
 	def get_short_name(self):
-		return "  W"
+		return "Wait(%s)" % self.duration
 
 #
 # Actions. These belong to and are executed by steps.
@@ -862,25 +865,36 @@ class State:
 		'''Find the next state that has all conditions met, or None if no such
 		state exists.'''
 		for state in self.subSteps:
-			if state.test(c):
+			if state.test(c, False):
 				state.execute(c)
 
 		# Clear line
 		target = None
+		debug = State.log.isEnabledFor(logging.DEBUG)
+		if debug:
+			sys.stdout.write('\rBlocked transitions:')
 		for state in self.transitions:
-			if state.test(c):
+			if state.test(c, debug):
 				target = state
 				break
+		if debug:
+			sys.stdout.write(' --END--')
+			sys.stdout.flush()
 		return target
 
-	def test(self, c):
+	def test(self, c, debug):
 		'''Check whether this state is ready to be transitioned to.'''
+		failed_condition = None
 		for condition in self.conditions:
 			if not condition.evaluate(c):
-				State.log.debug('Not transitioning to %s: condition %s failed.',
-						self, condition)
-				return False
-		return True
+				failed_condition = condition
+				break
+		if failed_condition is not None:
+			if debug:
+				sys.stdout.write(' %s#%s' % (self.name, failed_condition.get_short_name()))
+			return False
+		else:
+			return True
 
 	def __str__(self):
 		return "State({})".format(self.name)
