@@ -62,17 +62,22 @@ def parse_colour(colstr):
 	'''
 
 	if colstr[0] != '#':
-		colstr = _NAMED_COLOURS[colstr]
+		colstr = _NAMED_COLOURS[colstr.lower()]
 
 	if colstr[0] != '#':
 		raise ValueError('Hex colours need to start with a #')
 	colstr = colstr[1:]
-	if len(colstr) != 6 and len(colstr) != 8:
-		raise ValueError('Hex colours need to be 6 or 8 characters long.')
+
+	if len(colstr) in {3, 4}:
+		# half
+		components = [(x + x) for x in colstr]
+	elif len(colstr) in {6, 8}:
+		# full
+		components = [(x + y) for x,y in zip(colstr[0::2], colstr[1::2])]
+	else:
+		raise ValueError('Hex colours need to be #rgb, #rrggbb or #rrggbbaa.')
 
 	colour = BLACK.copy()
-
-	components = [(x + y) for x,y in zip(colstr[0::2], colstr[1::2])]
 	colour.x = int(components[0], 16)
 	colour.y = int(components[1], 16)
 	colour.z = int(components[2], 16)
