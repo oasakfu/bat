@@ -176,9 +176,21 @@ def get_scene(ob):
 	raise ValueError("Object does not belong to any scene.")
 
 def iterate_verts(ob, step=1):
-	'''Yields each vertex in an object's mesh.
-	Warning this is slow!'''
+	'''Yields each vertex in an object's mesh. Warning this is slow!'''
 	me = ob.meshes[0]
 	for mi in range(len(me.materials)):
 		for vi in range(0, me.getVertexArrayLength(mi), step):
 			yield me.getVertex(mi, vi)
+
+def iterate_polys(ob, step=1):
+	'''Yields each vertex in an object's mesh. Warning this is slow!'''
+	me = ob.meshes[0]
+	for pi in range(0, me.numPolygons, step):
+		yield me.getPolygon(pi)
+
+def iterate_poly_verts(mesh, poly, step=1):
+	'''Yields each vertex in an object's mesh. Warning this is slow!'''
+	mi = poly.getMaterialIndex()
+	for vi in range(0, poly.getNumVertex(), step):
+		vj = poly.getVertexIndex(vi)
+		yield mesh.getVertex(mi, vj)

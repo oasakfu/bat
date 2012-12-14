@@ -316,6 +316,14 @@ class BX_GameObject(metaclass=GameOb):
 	def to_world(self, point):
 		return bat.bmath.to_world(self, point)
 
+	@property
+	def verts(self):
+		return bat.utils.iterate_verts(self, 1)
+
+	@property
+	def polys(self):
+		return bat.utils.iterate_polys(self, 1)
+
 	def __repr__(self):
 		if hasattr(self, 'invalid') and self.invalid:
 			if hasattr(self, '_orig_name'):
