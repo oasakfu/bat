@@ -193,8 +193,8 @@ class SceneDispatch(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 				fn(*args, **kwargs)
 			except Exception as e:
 				SceneDispatch.log.error("Exception while executing deferred "
-						"function %s in %s:\n%s", fn,
-						bge.logic.getCurrentScene(), e)
+						"function %s in %s", fn,
+						bge.logic.getCurrentScene(), exc_info=1)
 		self.pending = []
 
 	@staticmethod

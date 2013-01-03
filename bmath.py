@@ -292,6 +292,27 @@ class DistanceKey:
 	def __call__(self, ob):
 		return ob.getDistanceTo(self.referencePoint)
 
+def find_closest(reference_point, obs):
+	'''
+	Finds the closest object in a list.
+	@return: 3-tuple: (object, index in list, distance)
+	'''
+	if len(obs) < 1:
+		return None, -1, 0
+
+	index = 0
+	closest_ob = obs[0]
+	dist = (closest_ob.worldPosition - reference_point).magnitude
+
+	for i, ob in enumerate(obs[1:]):
+		cdist = (ob.worldPosition - reference_point).magnitude
+		if cdist < dist:
+			index = i + 1
+			closest_ob = ob
+			dist = cdist
+
+	return closest_ob, index, dist
+
 class ZKey:
 	'''Sorts objects into ascending z-order.'''
 	def __call__(self, ob):

@@ -281,7 +281,7 @@ class BX_GameObject(metaclass=GameOb):
 		'''Finds a descendant of this object that matches a set of criteria.
 		This is a recursive, breadth-first search.
 
-		@param propCriteria: A list of tuples: (property name, value). If any
+		@param propCriteria: A list of tuples: [(property name, value)]. If any
 				one of these doesn't match a given child, it will not be
 				returned. If value is None, it always matches (the object need
 				only have a property of the given name).
