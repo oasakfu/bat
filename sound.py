@@ -141,8 +141,9 @@ class Jukebox(metaclass=bat.bats.Singleton):
 		self.update()
 
 	def play_files(self, ob, priority, *files, introfile=None, volume=1.0,
-				fade_in_rate=FADE_RATE, fade_out_rate=FADE_RATE):
+				fade_in_rate=FADE_RATE, fade_out_rate=FADE_RATE, name=None):
 		sample = Sample()
+		sample.name = name
 		sample.source = ChainMusicSource(*files, introfile=introfile)
 		sample.volume = volume
 		# No need to loop: ChainMusicSource does that already.
@@ -151,8 +152,9 @@ class Jukebox(metaclass=bat.bats.Singleton):
 		return sample
 
 	def play_permutation(self, ob, priority, *files, introfile=None, volume=1.0,
-				fade_in_rate=FADE_RATE, fade_out_rate=FADE_RATE):
+				fade_in_rate=FADE_RATE, fade_out_rate=FADE_RATE, name=None):
 		sample = Sample()
+		sample.name = name
 		sample.source = PermuteMusicSource(*files, introfile=introfile)
 		sample.volume = volume
 		# No need to loop: PermuteMusicSource does that already.
@@ -178,7 +180,8 @@ class Jukebox(metaclass=bat.bats.Singleton):
 
 	def stop(self, ob_or_sample, fade_rate=None):
 		for track in self.stack:
-			if track.ob is ob_or_sample or track.sample is ob_or_sample:
+			print(ob_or_sample, track.sample.name)
+			if track.ob is ob_or_sample or track.sample is ob_or_sample or track.sample.name == ob_or_sample:
 				if fade_rate is not None:
 					track.fade_rate = fade_rate
 				self.stack.discard(track)
@@ -494,6 +497,7 @@ class Sample:
 		self.pitchmax = 1.0
 		self.pitch = 1.0
 		self.loop = False
+		self.name = None
 
 		# Internal state stuff
 
