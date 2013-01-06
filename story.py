@@ -539,7 +539,8 @@ class ActMusicPlay(BaseAct):
 	target_descendant=None.
 	'''
 	def __init__(self, *filepaths, volume=1.0, loop=True, introfile=None,
-			ob=None, target_descendant=None, priority=2):
+			ob=None, target_descendant=None, priority=2, fade_in_rate=None,
+			fade_out_rate=None):
 
 		self.filepaths = filepaths
 		self.introfile = introfile
@@ -549,12 +550,16 @@ class ActMusicPlay(BaseAct):
 		self.ob = ob
 		self.priority = priority
 
+		self.fade_in_rate = fade_in_rate is None and bat.sound.FADE_RATE or fade_in_rate
+		self.fade_out_rate = fade_out_rate is None and bat.sound.FADE_RATE or fade_out_rate
+
 	def execute(self, c):
 		# Play the track. Use priority 1 for this kind of music, because it's
 		# important for the story.
 		ob = self.find_target(c, self.ob, self.target_descendant)
 		bat.sound.Jukebox().play_files(ob, self.priority, *self.filepaths,
-				introfile=self.introfile, volume=self.volume)
+				introfile=self.introfile, volume=self.volume,
+				fade_in_rate=self.fade_in_rate, fade_out_rate=self.fade_out_rate)
 
 	def __str__(self):
 		return "ActMusicPlay(%s)" % str(self.filepaths)

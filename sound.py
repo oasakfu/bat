@@ -91,25 +91,31 @@ class Jukebox(metaclass=bat.bats.Singleton):
 		self.current_track = None
 		self.discarded_tracks = []
 
-	def play_sample(self, sample, ob, priority, fade_rate=FADE_RATE):
-		track = Track(sample, ob, fade_rate=fade_rate)
+	def play_sample(self, sample, ob, priority, fade_in_rate=FADE_RATE,
+				fade_out_rate=FADE_RATE):
+		track = Track(sample, ob, fade_in_rate=fade_in_rate,
+			fade_out_rate=fade_out_rate)
 		self.stack.push(track, priority)
 		self.update()
 
-	def play_files(self, ob, priority, *files, introfile=None, volume=1.0, fade_rate=FADE_RATE):
+	def play_files(self, ob, priority, *files, introfile=None, volume=1.0,
+				fade_in_rate=FADE_RATE, fade_out_rate=FADE_RATE):
 		sample = Sample()
 		sample.source = ChainMusicSource(*files, introfile=introfile)
 		sample.volume = volume
 		# No need to loop: ChainMusicSource does that already.
-		self.play_sample(sample, ob, priority, fade_rate=fade_rate)
+		self.play_sample(sample, ob, priority, fade_in_rate=fade_in_rate,
+				fade_out_rate=fade_out_rate)
 		return sample
 
-	def play_permutation(self, ob, priority, *files, introfile=None, volume=1.0, fade_rate=FADE_RATE):
+	def play_permutation(self, ob, priority, *files, introfile=None, volume=1.0,
+				fade_in_rate=FADE_RATE, fade_out_rate=FADE_RATE):
 		sample = Sample()
 		sample.source = PermuteMusicSource(*files, introfile=introfile)
 		sample.volume = volume
 		# No need to loop: PermuteMusicSource does that already.
-		self.play_sample(sample, ob, priority, fade_rate=fade_rate)
+		self.play_sample(sample, ob, priority, fade_in_rate=fade_in_rate,
+				fade_out_rate=fade_out_rate)
 		return sample
 
 	def update(self):
@@ -139,11 +145,11 @@ class Jukebox(metaclass=bat.bats.Singleton):
 
 class Track:
 
-	def __init__(self, sample, ob, fade_rate=FADE_RATE):
+	def __init__(self, sample, ob, fade_in_rate=FADE_RATE, fade_out_rate=FADE_RATE):
 		self.sample = sample
 		self.ob = ob
-		self.fade_rate = fade_rate
-		self.fader = Fader(fade_rate)
+		self.fader_in = Fader(fade_in_rate)
+		self.fader_out = Fader(-fade_out_rate)
 
 	@property
 	def invalid(self):
@@ -156,14 +162,12 @@ class Track:
 	def play(self):
 		# Add the fader (fade-in mode). Even if it was added before, it won't be
 		# counted twice.
-		self.fader.rate = self.fade_rate
-		self.sample.add_effect(self.fader)
+		self.sample.add_effect(self.fader_in)
 		self.sample.play()
 
 	def stop(self):
 		# Fade out. When the volume reaches zero, the sound will stop.
-		self.fader.rate = -self.fade_rate
-		self.sample.add_effect(self.fader)
+		self.sample.add_effect(self.fader_out)
 
 	def __repr__(self):
 		return "Track({})".format(repr(self.sample))
