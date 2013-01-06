@@ -18,6 +18,7 @@
 from functools import wraps
 import abc
 import itertools
+import logging
 
 import aud
 import bge
@@ -26,6 +27,12 @@ import bat.containers
 import bat.bmath
 
 FADE_RATE = 0.01
+
+DIST_MAX = 10000.0
+DIST_MIN = 10.0
+ATTENUATION = 1.0
+
+log = logging.getLogger(__name__)
 
 _aud_locked = False
 def aud_lock(f):
@@ -53,6 +60,41 @@ def aud_lock(f):
 				_aud_locked = False
 
 	return _aud_lock
+
+
+@aud_lock
+def use_linear_clamped_falloff(dist_min=10, dist_max=50, attenuation=1.0):
+	global DIST_MAX
+	global DIST_MIN
+	global ATTENUATION
+
+	log.info("Setting sound falloff to linear")
+	try:
+		aud.device().distance_model = aud.AUD_DISTANCE_MODEL_LINEAR_CLAMPED
+	except aud.error as e:
+		log.warn("Can't set 3D audio model: %s", e)
+		return
+
+	DIST_MIN = dist_min
+	DIST_MAX = dist_max
+	ATTENUATION = attenuation
+
+@aud_lock
+def use_inverse_clamped_falloff(dist_min=10, dist_max=10000, attenuation=1.0):
+	global DIST_MAX
+	global DIST_MIN
+	global ATTENUATION
+
+	log.info("Setting sound falloff to inverse linear")
+	try:
+		aud.device().distance_model = aud.AUD_DISTANCE_MODEL_INVERSE_CLAMPED
+	except aud.error as e:
+		log.warn("Can't set 3D audio model: %s", e)
+		return
+
+	DIST_MIN = dist_min
+	DIST_MAX = dist_max
+	ATTENUATION = attenuation
 
 
 class Jukebox(metaclass=bat.bats.Singleton):
@@ -289,11 +331,14 @@ class Localise(Effect):
 	# These are sounds that have a location. We manage their location manually
 	# to work around this bug:
 	# http://projects.blender.org/tracker/?func=detail&atid=306&aid=32096&group_id=9
-	def __init__(self, ob, distmin=10.0, distmax=1000000.0, attenuation=10.0):
+
+	log = logging.getLogger(__name__ + '.Localise')
+
+	def __init__(self, ob, distmin=None, distmax=None, attenuation=None):
 		self.ob = ob
-		self.distmin = distmin
-		self.distmax = distmax
-		self.attenuation = attenuation
+		self.distmin = DIST_MIN if distmin is None else distmin
+		self.distmax = DIST_MAX if distmax is None else distmax
+		self.attenuation = ATTENUATION if attenuation is None else attenuation
 		self._handleid = None
 
 	def prepare(self, sample):
@@ -305,17 +350,23 @@ class Localise(Effect):
 	@aud_lock
 	def apply(self, sample, handle):
 		if not handle.status:
+			Localise.log.debug("Not localising dead handle of %s", self.ob)
 			return
 
 		handle.location = self.loc
 
-		if self._handleid != id(handle):
+		if True:#self._handleid != id(handle):
 			# This is the first time this particular handle has been localised.
+			# Actually this doesn't always work. Sometimes the handleid is wrong?
+			# Safer to set these properties on each frame.
 			handle.relative = False
 			handle.distance_reference = self.distmin
 			handle.distance_maximum = self.distmax
 			handle.attenuation = self.attenuation
 			self._handleid = id(handle)
+
+	def __repr__(self):
+		return "Localise(%s, %g)" % (self.ob, self.distmax)
 
 class Fader(Effect):
 	'''
@@ -354,6 +405,9 @@ class Fader(Effect):
 #		print(sample, self.multiplier)
 		handle.volume *= self.multiplier
 
+	def __repr__(self):
+		return "Fader(%g)" % self.rate
+
 class FadeByLinV(Effect):
 	'''Plays a sound loudly when the object is moving fast.'''
 	def __init__(self, ob, scale=0.05):
@@ -376,6 +430,9 @@ class FadeByLinV(Effect):
 		# A multiplier is used to allow this to work together with other volume
 		# effects.
 		handle.volume *= self.multiplier
+
+	def __repr__(self):
+		return "FadeByLinV(%s)" % self.ob
 
 class PitchByAngV(Effect):
 	'''Increases the pitch of a sound the faster an object rotates.'''
@@ -402,6 +459,9 @@ class PitchByAngV(Effect):
 		# effects.
 		handle.pitch *= self.multiplier
 
+	def __repr__(self):
+		return "PitchByAngV(%s)" % self.ob
+
 
 class Sample:
 	'''
@@ -411,6 +471,8 @@ class Sample:
 	A Sample can only play one instance of its sound at a time. If you want to
 	play a second instance, call Sample.copy().
 	'''
+
+	log = logging.getLogger(__name__ + '.Sample')
 
 	def __init__(self, *filenames):
 		'''
@@ -454,6 +516,7 @@ class Sample:
 		return other
 
 	def add_effect(self, effect):
+		Sample.log.debug("Adding effect %s to %s", effect, self)
 		self._effects.add(effect)
 
 	def remove_effect(self, effect):
@@ -506,6 +569,7 @@ class Sample:
 		if self.playing:
 			return
 
+		Sample.log.info("Playing %s", self)
 		try:
 			factory = self._construct_factory(self.source.get())
 			self._pre_update()

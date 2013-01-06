@@ -510,17 +510,22 @@ class ActSound(BaseAct):
 	emitter = bat.containers.weakprop("emitter")
 
 	def __init__(self, filename, vol=1, pitchmin=1, pitchmax=1, emitter=None,
-			maxdist=50.0):
+			mindist=None, maxdist=None):
 		self.sample = bat.sound.Sample(filename)
 		self.sample.volume = vol
 		self.sample.pitchmin = pitchmin
 		self.sample.pitchmax = pitchmax
 
 		if emitter is not None:
-			# Just a guess, can change this if needed
-			mindist = maxdist / 5.0
-			self.sample.add_effect(bat.sound.Localise(
-					emitter, distmin=mindist,distmax=maxdist))
+			if maxdist is not None and mindist is not None:
+				localise = bat.sound.Localise(emitter, distmin=mindist, distmax=maxdist)
+			elif maxdist is not None :
+				localise = bat.sound.Localise(emitter, distmax=maxdist)
+			elif mindist is not None :
+				localise = bat.sound.Localise(emitter, distmin=mindist)
+			else:
+				localise = bat.sound.Localise(emitter)
+			self.sample.add_effect(localise)
 
 	def execute(self, c):
 		self.sample.copy().play()
@@ -550,8 +555,8 @@ class ActMusicPlay(BaseAct):
 		self.ob = ob
 		self.priority = priority
 
-		self.fade_in_rate = fade_in_rate is None and bat.sound.FADE_RATE or fade_in_rate
-		self.fade_out_rate = fade_out_rate is None and bat.sound.FADE_RATE or fade_out_rate
+		self.fade_in_rate = bat.sound.FADE_RATE if fade_in_rate is None else fade_in_rate
+		self.fade_out_rate = bat.sound.FADE_RATE if fade_out_rate is None else fade_out_rate
 
 	def execute(self, c):
 		# Play the track. Use priority 1 for this kind of music, because it's
