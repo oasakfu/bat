@@ -141,10 +141,11 @@ class Jukebox(metaclass=bat.bats.Singleton):
 		self.update()
 
 	def play_files(self, ob, priority, *files, introfile=None, volume=1.0,
-				fade_in_rate=FADE_RATE, fade_out_rate=FADE_RATE, name=None):
+				fade_in_rate=FADE_RATE, fade_out_rate=FADE_RATE, name=None,
+				loop=True):
 		sample = Sample()
 		sample.name = name
-		sample.source = ChainMusicSource(*files, introfile=introfile)
+		sample.source = ChainMusicSource(*files, introfile=introfile, loop=loop)
 		sample.volume = volume
 		# No need to loop: ChainMusicSource does that already.
 		self.play_sample(sample, ob, priority, fade_in_rate=fade_in_rate,
@@ -152,10 +153,11 @@ class Jukebox(metaclass=bat.bats.Singleton):
 		return sample
 
 	def play_permutation(self, ob, priority, *files, introfile=None, volume=1.0,
-				fade_in_rate=FADE_RATE, fade_out_rate=FADE_RATE, name=None):
+				fade_in_rate=FADE_RATE, fade_out_rate=FADE_RATE, name=None,
+				loop=True):
 		sample = Sample()
 		sample.name = name
-		sample.source = PermuteMusicSource(*files, introfile=introfile)
+		sample.source = PermuteMusicSource(*files, introfile=introfile, loop=loop)
 		sample.volume = volume
 		# No need to loop: PermuteMusicSource does that already.
 		self.play_sample(sample, ob, priority, fade_in_rate=fade_in_rate,
@@ -169,6 +171,9 @@ class Jukebox(metaclass=bat.bats.Singleton):
 			track = self.stack.top()
 
 		if track == self.current_track:
+			if track is not None and not track.playing:
+				# Track has stopped by itself, so play next on the stack
+				self.stack.discard(track)
 			return
 
 		if self.current_track is not None:
@@ -183,7 +188,7 @@ class Jukebox(metaclass=bat.bats.Singleton):
 			print(ob_or_sample, track.sample.name)
 			if track.ob is ob_or_sample or track.sample is ob_or_sample or track.sample.name == ob_or_sample:
 				if fade_rate is not None:
-					track.fade_rate = fade_rate
+					track.special_fade_out_rate = fade_rate
 				self.stack.discard(track)
 				self.update()
 				return
@@ -193,8 +198,9 @@ class Track:
 	def __init__(self, sample, ob, fade_in_rate=FADE_RATE, fade_out_rate=FADE_RATE):
 		self.sample = sample
 		self.ob = ob
-		self.fader_in = Fader(fade_in_rate)
-		self.fader_out = Fader(-fade_out_rate)
+		self.fade_in_rate = fade_in_rate
+		self.fade_out_rate = fade_out_rate
+		self.special_fade_out_rate = None
 
 	@property
 	def invalid(self):
@@ -207,12 +213,18 @@ class Track:
 	def play(self):
 		# Add the fader (fade-in mode). Even if it was added before, it won't be
 		# counted twice.
-		self.sample.add_effect(self.fader_in)
+		self.sample.add_effect(Fader(self.fade_in_rate))
 		self.sample.play()
 
 	def stop(self):
 		# Fade out. When the volume reaches zero, the sound will stop.
-		self.sample.add_effect(self.fader_out)
+		if self.special_fade_out_rate is not None:
+			# Allows once-off different fade out.
+			rate = -self.special_fade_out_rate
+			self.special_fade_out_rate = None
+		else:
+			rate = -self.fade_out_rate
+		self.sample.add_effect(Fader(rate))
 
 	def __repr__(self):
 		return "Track({})".format(repr(self.sample))
@@ -251,10 +263,13 @@ class MultiSource(Source):
 		return repr(self.filenames)
 
 class ChainMusicSource(Source):
-	'''Plays two sounds back-to-back; the second sound will loop.'''
-	def __init__(self, *loopfiles, introfile=None):
+	'''
+	Plays two sounds back-to-back; the second sound can loop independently.
+	'''
+	def __init__(self, *loopfiles, introfile=None, loop=True):
 		self.introfile = introfile
 		self.loopfiles = loopfiles
+		self.loop = loop
 
 	def get(self):
 		loop = self._get_loop()
@@ -270,7 +285,10 @@ class ChainMusicSource(Source):
 			path = bge.logic.expandPath(filepath)
 			segments.append(aud.Factory(path))
 		sequence = self._concatenate_factories(segments)
-		return sequence.loop(-1)
+		if self.loop:
+			return sequence.loop(-1)
+		else:
+			return sequence
 
 	def _concatenate_factories(self, factories):
 		combined = None
@@ -305,7 +323,10 @@ class PermuteMusicSource(ChainMusicSource):
 			perms.append(self._concatenate_factories(p))
 		sequence = self._concatenate_factories(perms)
 
-		return sequence.loop(-1)
+		if self.loop:
+			return sequence.loop(-1)
+		else:
+			return sequence
 
 	def __repr__(self):
 		return "Permute({}, {}...)".format(repr(self.introfile), repr(self.loopfiles[0]))
