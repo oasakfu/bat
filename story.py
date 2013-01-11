@@ -313,15 +313,21 @@ class BaseAct:
 	def __str__(self):
 		return self.__class__.__name__
 
-	def find_target(self, c, ob_or_name, descendant_name=None):
-		ob = ob_or_name
+class TargetedAct:
+	def __init__(self, ob_or_name, descendant_name):
+		self.ob_or_name = ob_or_name
+		self.descendant_name = descendant_name
+
+	@property
+	def target(self):
+		ob = self.ob_or_name
 		if ob is None:
-			ob = c.owner
+			ob = bge.logic.getCurrentController().owner
 		elif isinstance(ob, str):
 			ob = bge.logic.getCurrentScene().objects[ob]
 
-		if descendant_name is not None:
-			ob = ob.childrenRecursive[descendant_name]
+		if self.descendant_name is not None:
+			ob = ob.childrenRecursive[self.descendant_name]
 
 		return ob
 
@@ -334,35 +340,32 @@ class ActStoreSet(BaseAct):
 	def execute(self, c):
 		bat.store.put(self.path, self.value)
 
-class ActAttrSet(BaseAct):
+class ActAttrSet(TargetedAct, BaseAct):
 	'''Set a Python attribute on the object.'''
 	def __init__(self, name, value, ob=None, target_descendant=None):
+		TargetedAct.__init__(self, ob, target_descendant)
 		self.name = name
 		self.value = value
-		self.target_descendant = target_descendant
-		self.ob = ob
 
 	def execute(self, c):
-		ob = self.find_target(c, self.ob, self.target_descendant)
-		setattr(ob, self.name, self.value)
+		setattr(self.target, self.name, self.value)
 
 	def __str__(self):
 		return "ActAttrSet(%s <- %s)" % (self.name, self.value)
 
-class ActAttrLerp(BaseAct):
+class ActAttrLerp(TargetedAct, BaseAct):
 	'''Interpolate an attribute between two values.'''
 
 	log = logging.getLogger(__name__ + '.ActAttrLerp')
 
 	def __init__(self, name, a, b, duration, clamp=True, ob=None, target_descendant=None):
+		TargetedAct.__init__(self, ob, target_descendant)
 		self.name = name
 		self.interpolator = bat.bmath.LinearInterpolator.from_duration(a, b, duration)
 		self.interpolator.clamp = clamp
-		self.target_descendant = target_descendant
-		self.ob = ob
 
 	def execute(self, c):
-		ob = self.find_target(c, self.ob, self.target_descendant)
+		ob = self.target
 		val = getattr(ob, self.name)
 		new_val = self.interpolator.interpolate(val)
 		ActAttrLerp.log.debug("%s = %s -> %s", self.name, val, new_val)
@@ -371,35 +374,32 @@ class ActAttrLerp(BaseAct):
 	def __str__(self):
 		return "ActAttrLerp(%s <- %s - %s)" % (self.name, self.interpolator.a, self.interpolator.b)
 
-class ActPropSet(BaseAct):
+class ActPropSet(TargetedAct, BaseAct):
 	'''Set a game property on the object.'''
 	def __init__(self, name, value, ob=None, target_descendant=None):
+		TargetedAct.__init__(self, ob, target_descendant)
 		self.name = name
 		self.value = value
-		self.target_descendant = target_descendant
-		self.ob = ob
 
 	def execute(self, c):
-		ob = self.find_target(c, self.ob, self.target_descendant)
-		ob[self.name] = self.value
+		self.target[self.name] = self.value
 
 	def __str__(self):
 		return "ActPropSet(%s <- %s)" % (self.name, self.value)
 
-class ActPropLerp(BaseAct):
+class ActPropLerp(TargetedAct, BaseAct):
 	'''Interpolate a property between two values.'''
 
 	log = logging.getLogger(__name__ + '.ActPropLerp')
 
 	def __init__(self, name, a, b, duration, clamp=True, ob=None, target_descendant=None):
+		TargetedAct.__init__(self, ob, target_descendant)
 		self.name = name
 		self.interpolator = bat.bmath.LinearInterpolator.from_duration(a, b, duration)
 		self.interpolator.clamp = clamp
-		self.target_descendant = target_descendant
-		self.ob = ob
 
 	def execute(self, c):
-		ob = self.find_target(c, self.ob, self.target_descendant)
+		ob = self.target
 		val = ob[self.name]
 		new_val = self.interpolator.interpolate(val)
 		ActPropLerp.log.debug("%s = %s -> %s", self.name, val, new_val)
@@ -419,42 +419,40 @@ class ActActuate(BaseAct):
 	def __str__(self):
 		return "ActActuate(%s)" % self.ActuatorName
 
-class ActAction(BaseAct):
+class ActAction(TargetedAct, BaseAct):
 	'''Plays an animation.'''
 	def __init__(self, action, start, end, layer=0, targetDescendant=None,
 			play_mode=bge.logic.KX_ACTION_MODE_PLAY, ob=None, blendin=0.0):
+		TargetedAct.__init__(self, ob, targetDescendant)
 		self.action = action
 		self.start = start
 		self.end = end
 		self.layer = layer
-		self.targetDescendant = targetDescendant
 		self.playMode = play_mode
-		self.ob = ob
 		self.blendin = blendin
 
 	def execute(self, c):
-		ob = self.find_target(c, self.ob, self.targetDescendant)
-		ob.playAction(self.action, self.start, self.end, self.layer,
+		self.target.playAction(self.action, self.start, self.end, self.layer,
 			blendin=self.blendin, play_mode=self.playMode)
 
 	def __str__(self):
 		return "ActAction(%s, %d -> %d)" % (self.action, self.start, self.end)
 
-class ActActionStop(BaseAct):
+class ActActionStop(TargetedAct, BaseAct):
 	'''Stops an animation.'''
 	def __init__(self, layer, targetDescendant=None, ob=None):
+		TargetedAct.__init__(self, ob, targetDescendant)
 		self.layer = layer
 		self.targetDescendant = targetDescendant
 		self.ob = ob
 
 	def execute(self, c):
-		ob = self.find_target(c, self.ob, self.targetDescendant)
-		ob.stopAction(self.layer)
+		self.target.stopAction(self.layer)
 
 	def __str__(self):
 		return "ActActionStop(%d)" % self.layer
 
-class ActConstraintSet(BaseAct):
+class ActConstraintSet(TargetedAct, BaseAct):
 	'''
 	Adjusts the strength of a constraint on an armature over a range of frames
 	of an animation. It is recommended that this be used in a sub-step with no
@@ -462,20 +460,18 @@ class ActConstraintSet(BaseAct):
 	'''
 	def __init__(self, bone_name, constraint_name, fac, ob=None,
 			target_descendant=None):
+		TargetedAct.__init__(self, ob, target_descendant)
 		self.name = "{}:{}".format(bone_name, constraint_name)
 		self.fac = fac
-		self.target_descendant = target_descendant
-		self.ob = ob
 
 	def execute(self, c):
-		ob = self.find_target(c, self.ob, self.target_descendant)
-		con = ob.constraints[self.name]
+		con = self.target.constraints[self.name]
 		con.enforce = self.fac
 
 	def __str__(self):
 		return "ActConstraintSet(%s)" % (self.name)
 
-class ActConstraintFade(BaseAct):
+class ActConstraintFade(TargetedAct, BaseAct):
 	'''
 	Adjusts the strength of a constraint on an armature over a range of frames
 	of an animation. It is recommended that this be used in a sub-step with no
@@ -483,17 +479,16 @@ class ActConstraintFade(BaseAct):
 	'''
 	def __init__(self, bone_name, constraint_name, fac1, fac2, frame1, frame2,
 			layer, ob=None, target_descendant=None):
+		TargetedAct.__init__(self, ob, target_descendant)
 		self.name = "{}:{}".format(bone_name, constraint_name)
 		self.fac1 = fac1
 		self.fac2 = fac2
 		self.frame1 = frame1
 		self.frame2 = frame2
 		self.layer = layer
-		self.target_descendant = target_descendant
-		self.ob = ob
 
 	def execute(self, c):
-		ob = self.find_target(c, self.ob, self.target_descendant)
+		ob = self.target
 		con = ob.constraints[self.name]
 		cfra = ob.getActionFrame(self.layer)
 		k = bat.bmath.unlerp(self.frame1, self.frame2, cfra)
@@ -506,6 +501,9 @@ class ActConstraintFade(BaseAct):
 
 class ActSound(BaseAct):
 	'''Plays a short sound.'''
+
+	# NOTE: Not a TargetedAct because sometimes you don't want the sound to be
+	# localised! TODO: split into two Acts.
 
 	emitter = bat.containers.weakprop("emitter")
 
@@ -533,60 +531,71 @@ class ActSound(BaseAct):
 	def __str__(self):
 		return "ActSound(%s)" % self.sample
 
-class ActMusicPlay(BaseAct):
+class ActMusicPlay(TargetedAct, BaseAct):
 	'''
 	Plays a music track. The previous track will be stopped, but will remain
 	queued in the jukebox.
 
 	Music is associated with a real object (the 'target'). If the object dies,
 	the music will stop. To stop music manually, use ActMusicStop with the same
-	object. To use the current object as the target, set ob=None and
-	target_descendant=None.
+	object.
 	'''
 	def __init__(self, *filepaths, volume=1.0, loop=True, introfile=None,
 			ob=None, target_descendant=None, priority=2, fade_in_rate=None,
-			fade_out_rate=None):
-
+			fade_out_rate=None, name=None):
+		TargetedAct.__init__(self, ob, target_descendant)
 		self.filepaths = filepaths
 		self.introfile = introfile
 		self.volume = volume
 		self.loop = loop
-		self.target_descendant = target_descendant
-		self.ob = ob
 		self.priority = priority
+		self._name = name
 
 		self.fade_in_rate = bat.sound.FADE_RATE if fade_in_rate is None else fade_in_rate
 		self.fade_out_rate = bat.sound.FADE_RATE if fade_out_rate is None else fade_out_rate
 
+	@property
+	def name(self):
+		if self._name is None:
+			return self.target.name
+		else:
+			return self._name
+
 	def execute(self, c):
 		# Play the track. Use priority 1 for this kind of music, because it's
 		# important for the story.
-		ob = self.find_target(c, self.ob, self.target_descendant)
-		bat.sound.Jukebox().play_files(ob, self.priority, *self.filepaths,
-				introfile=self.introfile, volume=self.volume,
+		target = self.target
+		bat.sound.Jukebox().play_files(self.name, target, self.priority,
+				*self.filepaths, introfile=self.introfile, volume=self.volume,
 				fade_in_rate=self.fade_in_rate, fade_out_rate=self.fade_out_rate)
 
 	def __str__(self):
-		return "ActMusicPlay(%s)" % str(self.filepaths)
+		return "ActMusicPlay(%s)" % str(self.name)
 
-class ActMusicStop(BaseAct):
+class ActMusicStop(TargetedAct, BaseAct):
 	'''
 	Stops a music track. The previous track on the jukebox stack will then play
 	again.
 
 	Music is associated with a real object. See ActMusicPlay for details.
 	'''
-	def __init__(self, fade_rate=None, ob=None, target_descendant=None):
+	def __init__(self, fade_rate=None, ob=None, target_descendant=None, name=None):
+		TargetedAct.__init__(self, ob, target_descendant)
 		self.fade_rate = fade_rate
-		self.target_descendant = target_descendant
-		self.ob = ob
+		self._name = name
+
+	@property
+	def name(self):
+		if self._name is None:
+			return self.target.name
+		else:
+			return self._name
 
 	def execute(self, c):
-		ob = self.find_target(c, self.ob, self.target_descendant)
-		bat.sound.Jukebox().stop(ob, self.fade_rate)
+		bat.sound.Jukebox().stop(self.name, self.fade_rate)
 
 	def __str__(self):
-		return "ActMusicStop()"
+		return "ActMusicStop(%s)" % str(self.name)
 
 class ActGeneric(BaseAct):
 	'''Run any function.'''
@@ -623,32 +632,28 @@ class ActEvent(BaseAct):
 	def __str__(self):
 		return "ActEvent(%s)" % self.event.message
 
-class ActEventOb(BaseAct):
+class ActEventOb(TargetedAct, BaseAct):
 	'''Fire an event, using this object or a specified object as the body.'''
 	def __init__(self, message, delay=0, ob=None, target_descendant=None):
+		TargetedAct.__init__(self, ob, target_descendant)
 		self.message = message
 		self.delay = delay
-		self.ob = ob
-		self.target_descendant = target_descendant
 
 	def execute(self, c):
-		ob = self.find_target(c, self.ob, self.target_descendant)
-		evt = bat.event.WeakEvent(self.message, ob)
+		evt = bat.event.WeakEvent(self.message, self.target)
 		evt.send(delay=self.delay)
 		bat.event.EventBus().notify(self.event)
 
 	def __str__(self):
 		return "ActEventOb(%s)" % self.event.message
 
-class ActDestroy(BaseAct):
+class ActDestroy(TargetedAct, BaseAct):
 	'''Remove the object from the scene.'''
 	def __init__(self, ob=None, target_descendant=None):
-		self.ob = ob
-		self.target_descendant = target_descendant
+		TargetedAct.__init__(self, ob, target_descendant)
 
 	def execute(self, c):
-		ob = self.find_target(c, self.ob, self.target_descendant)
-		ob.endObject()
+		self.target.endObject()
 
 
 class AnimBuilder:

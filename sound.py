@@ -105,66 +105,77 @@ class Jukebox(metaclass=bat.bats.Singleton):
 	character enters a locality). For example:
 
 		# Start playing level music
-		bat.sound.Jukebox().play_files(level_empty, 0, '//background_music.ogg')
+		bat.sound.Jukebox().play_files('bg', level_empty, 0, '//background_music.ogg')
 		...
 		# Enter a locality
-		bat.sound.Jukebox().play_files(house, 0, '//background_music.ogg')
+		bat.sound.Jukebox().play_files('house', house, 0, '//background_music.ogg')
 		...
 		# Return to main level music
-		bat.sound.Jukebox().stop(house)
+		bat.sound.Jukebox().stop('house')
 
 	Notice that both of these tracks have a priority of 0, but the second will
 	still override the first. If the first had had a priority of 1, the second
 	track would not have started. For example:
 
 		# Start playing high-priority music
-		bat.sound.Jukebox().play_files(level_empty, 1, '//first.ogg')
+		bat.sound.Jukebox().play_files('bg', level_empty, 1, '//first.ogg')
 		...
 		# Enqueue low-priority music
-		bat.sound.Jukebox().play_files(house, 0, '//second.ogg')
+		bat.sound.Jukebox().play_files('house', house, 0, '//second.ogg')
 		...
-		# second.ogg will start now.
-		bat.sound.Jukebox().stop(level_empty)
+		# second.ogg will start now
+		bat.sound.Jukebox().stop('bg', level_empty)
 	'''
 
 
 	def __init__(self):
+		# Use of SafePriorityStack means tracks are discarded automatically if
+		# the owning object dies.
 		self.stack = bat.containers.SafePriorityStack()
 		self.current_track = None
-		self.discarded_tracks = []
+		self.track_cache = {}
 
-	def play_sample(self, sample, ob, priority, fade_in_rate=FADE_RATE,
-				fade_out_rate=FADE_RATE):
-		track = Track(sample, ob, fade_in_rate=fade_in_rate,
-			fade_out_rate=fade_out_rate)
+	def play_track(self, name, track, priority):
 		self.stack.push(track, priority)
+		self.track_cache[name] = track
 		self.update()
 
-	def play_files(self, ob, priority, *files, introfile=None, volume=1.0,
-				fade_in_rate=FADE_RATE, fade_out_rate=FADE_RATE, name=None,
-				loop=True):
-		sample = Sample()
-		sample.name = name
-		sample.source = ChainMusicSource(*files, introfile=introfile, loop=loop)
-		sample.volume = volume
-		# No need to loop: ChainMusicSource does that already.
-		self.play_sample(sample, ob, priority, fade_in_rate=fade_in_rate,
-				fade_out_rate=fade_out_rate)
-		return sample
+	def play_files(self, name, ob, priority, *files, introfile=None, volume=1.0,
+				fade_in_rate=FADE_RATE, fade_out_rate=FADE_RATE, loop=True):
+		if name in self.track_cache:
+			# Re-use track and take ownership
+			track = self.track_cache[name]
+			track.ob = ob
+		else:
+			sample = Sample()
+			sample.source = ChainMusicSource(*files, introfile=introfile, loop=loop)
+			sample.volume = volume
+			track = Track(sample, ob, fade_in_rate=fade_in_rate,
+					fade_out_rate=fade_out_rate)
+		self.play_track(name, track, priority)
 
-	def play_permutation(self, ob, priority, *files, introfile=None, volume=1.0,
-				fade_in_rate=FADE_RATE, fade_out_rate=FADE_RATE, name=None,
+	def play_permutation(self, name, ob, priority, *files, introfile=None,
+				volume=1.0, fade_in_rate=FADE_RATE, fade_out_rate=FADE_RATE,
 				loop=True):
-		sample = Sample()
-		sample.name = name
-		sample.source = PermuteMusicSource(*files, introfile=introfile, loop=loop)
-		sample.volume = volume
-		# No need to loop: PermuteMusicSource does that already.
-		self.play_sample(sample, ob, priority, fade_in_rate=fade_in_rate,
-				fade_out_rate=fade_out_rate)
-		return sample
+		if name in self.track_cache:
+			# Re-use track and take ownership
+			track = self.track_cache[name]
+			track.ob = ob
+		else:
+			sample = Sample()
+			sample.source = PermuteMusicSource(*files, introfile=introfile, loop=loop)
+			sample.volume = volume
+			track = Track(sample, ob, fade_in_rate=fade_in_rate,
+					fade_out_rate=fade_out_rate)
+		self.play_track(name, track, priority)
 
 	def update(self):
+		# Purge dead tracks
+		for name, track in list(self.track_cache.items()):
+			if track.invalid and not track.playing:
+				Jukebox.log.debug("Removing dead track '%s'", name)
+				del self.track_cache[name]
+
 		if len(self.stack) == 0:
 			track = None
 		else:
@@ -183,15 +194,15 @@ class Jukebox(metaclass=bat.bats.Singleton):
 		self.current_track = track
 		print(self.current_track)
 
-	def stop(self, ob_or_sample, fade_rate=None):
-		for track in self.stack:
-			print(ob_or_sample, track.sample.name)
-			if track.ob is ob_or_sample or track.sample is ob_or_sample or track.sample.name == ob_or_sample:
-				if fade_rate is not None:
-					track.special_fade_out_rate = fade_rate
-				self.stack.discard(track)
-				self.update()
-				return
+	def stop(self, name, fade_rate=None):
+		try:
+			track = self.track_cache[name]
+		except KeyError:
+			Jukebox.log.warn("Tried to stop track that isn't playing or queued")
+			return
+		track.special_fade_out_rate = fade_rate
+		self.stack.discard(track)
+		self.update()
 
 class Track:
 
@@ -204,6 +215,7 @@ class Track:
 
 	@property
 	def invalid(self):
+		# Used by SafePriorityStack
 		return self.ob.invalid
 
 	@property
@@ -213,6 +225,7 @@ class Track:
 	def play(self):
 		# Add the fader (fade-in mode). Even if it was added before, it won't be
 		# counted twice.
+		self.sample.remove_effect("Fader")
 		self.sample.add_effect(Fader(self.fade_in_rate))
 		self.sample.play()
 
@@ -224,6 +237,7 @@ class Track:
 			self.special_fade_out_rate = None
 		else:
 			rate = -self.fade_out_rate
+		self.sample.remove_effect("Fader")
 		self.sample.add_effect(Fader(rate))
 
 	def __repr__(self):
@@ -545,6 +559,12 @@ class Sample:
 		self._effects.add(effect)
 
 	def remove_effect(self, effect):
+		if isinstance(effect, str):
+			# Remove effect by name
+			for ef in self._effects:
+				if ef.__class__.__name__ == effect:
+					effect = ef
+					break
 		self._effects.discard(effect)
 
 	@property
