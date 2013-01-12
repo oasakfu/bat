@@ -620,8 +620,7 @@ class Sample:
 			self._pre_update()
 			self._play(factory)
 		except aud.error as e:
-			print("Error playing sound" % self)
-			print(e)
+			Sample.log.error("%s: %s", self, e)
 
 	def stop(self):
 		'''Stop playing the sound. If it is not playing, nothing happens.'''
