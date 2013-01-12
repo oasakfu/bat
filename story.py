@@ -507,9 +507,9 @@ class ActSound(BaseAct):
 
 	emitter = bat.containers.weakprop("emitter")
 
-	def __init__(self, filename, vol=1, pitchmin=1, pitchmax=1, emitter=None,
+	def __init__(self, *filenames, vol=1, pitchmin=1, pitchmax=1, emitter=None,
 			mindist=None, maxdist=None):
-		self.sample = bat.sound.Sample(filename)
+		self.sample = bat.sound.Sample(*filenames)
 		self.sample.volume = vol
 		self.sample.pitchmin = pitchmin
 		self.sample.pitchmax = pitchmax
@@ -647,8 +647,19 @@ class ActEventOb(TargetedAct, BaseAct):
 	def __str__(self):
 		return "ActEventOb(%s)" % self.event.message
 
+class ActAddObject(TargetedAct, BaseAct):
+	'''Add an object to the scene at the same location as target.'''
+	def __init__(self, name, lifetime=0, ob=None, target_descendant=None):
+		TargetedAct.__init__(self, ob, target_descendant)
+		self.name = name
+		self.lifetime = lifetime
+
+	def execute(self, c):
+		sce = bge.logic.getCurrentScene()
+		sce.addObject(self.name, self.target, self.lifetime)
+
 class ActDestroy(TargetedAct, BaseAct):
-	'''Remove the object from the scene.'''
+	'''Remove an object from the scene.'''
 	def __init__(self, ob=None, target_descendant=None):
 		TargetedAct.__init__(self, ob, target_descendant)
 
