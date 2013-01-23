@@ -45,6 +45,32 @@ _NAMED_COLOURS = {
 	'cargo' : '#36365a',
 }
 
+def srgb2lin(colour):
+	'''Convert an sRGB colour to linear.'''
+	def _srgb2lin_comp(component):
+		if component < 0.0031308:
+			return component * 12.92;
+		else:
+			return 1.055 * pow(component, 1.0/2.4) - 0.055;
+
+	colour = colour.copy()
+	for i in range(3):
+		colour[i] = _srgb2lin_comp(colour[i])
+	return colour
+
+def lin2srgb(colour):
+	'''Convert a linear colour to sRGB.'''
+	def _lin2srgb_comp(component):
+		if component < 0.04045:
+			return component * (1.0 / 12.92)
+		else:
+			return pow((component + 0.055) * (1.0 / 1.055), 2.4)
+
+	colour = colour.copy()
+	for i in range(3):
+		colour[i] = _lin2srgb_comp(colour[i])
+	return colour
+
 def draw_polyline(points, colour, cyclic=False):
 	'''Like bge.render.drawLine, but operates on any number of points.'''
 
