@@ -275,7 +275,7 @@ class Water(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 			if submerged_factor <= 0.0:
 				self.floatingActors.discard(actor)
 
-		if actor['Oxygen'] <= 0.0:
+		if actor['Drownable'] and actor['Oxygen'] <= 0.0:
 			if hasattr(actor, 'drown'):
 				actor.drown()
 			else:
@@ -351,6 +351,7 @@ class Water(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 			actor.on_oxygen_set()
 		bat.utils.set_default_prop(actor, 'OxygenDepletionRate', 0.005)
 		bat.utils.set_default_prop(actor, 'Buoyancy', 0.1)
+		bat.utils.set_default_prop(actor, 'Drownable', True)
 		bat.utils.set_default_prop(actor, 'CurrentBuoyancy', actor['Buoyancy'])
 		bat.utils.set_default_prop(actor, 'FloatRadius', 1.1)
 		bat.utils.set_default_prop(actor, 'SinkFactor', 0.002)
