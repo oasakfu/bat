@@ -408,6 +408,24 @@ class ActPropLerp(TargetedAct, BaseAct):
 	def __str__(self):
 		return "ActPropLerp(%s <- %s - %s)" % (self.name, self.a, self.b)
 
+class ActStateChange(TargetedAct, BaseAct):
+	'''Set a game property on the object.'''
+	def __init__(self, operation, value, ob=None, target_descendant=None):
+		TargetedAct.__init__(self, ob, target_descendant)
+		self.operation = operation
+		self.value = value
+
+	def execute(self, c):
+		if self.operation == 'SET':
+			bat.utils.set_state(self.target, self.value)
+		if self.operation == 'ADD':
+			bat.utils.add_state(self.target, self.value)
+		if self.operation == 'REM':
+			bat.utils.rem_state(self.target, self.value)
+
+	def __str__(self):
+		return "ActStateChange(%s %s)" % (self.operation, self.value)
+
 class ActActuate(BaseAct):
 	'''Activate an actuator.'''
 	def __init__(self, actuatorName):
