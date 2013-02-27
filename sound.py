@@ -68,7 +68,7 @@ def use_linear_clamped_falloff(dist_min=10, dist_max=50, attenuation=1.0):
 	global DIST_MIN
 	global ATTENUATION
 
-	log.info("Setting sound falloff to linear")
+	log.info("Setting sound falloff to linear. Max dist: %d", dist_max)
 	try:
 		aud.device().distance_model = aud.AUD_DISTANCE_MODEL_LINEAR_CLAMPED
 	except aud.error as e:
@@ -383,6 +383,7 @@ class Localise(Effect):
 		try:
 			self.loc = self.ob.worldPosition
 		except SystemError:
+			Localise.log.debug("Stopping sound of dead object")
 			sample.stop()
 
 	@aud_lock
@@ -392,6 +393,8 @@ class Localise(Effect):
 			return
 
 		handle.location = self.loc
+#		if self.ob.getPhysicsId() != 0:
+#			handle.velocity = self.ob.worldLinearVelocity
 
 		if True:#self._handleid != id(handle):
 			# This is the first time this particular handle has been localised.
@@ -626,6 +629,7 @@ class Sample:
 		'''Stop playing the sound. If it is not playing, nothing happens.'''
 		if self._handle is None:
 			return
+		Sample.log.debug("Stopping %s", self)
 		self._handle.stop()
 		self._handle = None
 
