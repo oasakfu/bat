@@ -78,6 +78,22 @@ class LinearInterpolator:
 			frac = 1
 		return bat.bmath.lerp(self.a, self.b, frac)
 
+class LinearInterpolatorAbsolute:
+	def __init__(self, target, rate):
+		self.target = target
+		self.rate = rate
+
+	def interpolate(self, current_value):
+		if current_value < self.target:
+			current_value += self.rate
+			if current_value > self.target:
+				current_value = self.target
+		elif current_value > self.target:
+			current_value -= self.rate
+			if current_value < self.target:
+				current_value = self.target
+		return current_value
+
 def smerp(currentDelta, currentValue, target, speedFactor, responsiveness):
 	'''
 	Smooth exponential average interpolation
