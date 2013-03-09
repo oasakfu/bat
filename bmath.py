@@ -115,16 +115,19 @@ def smerp(currentDelta, currentValue, target, speedFactor, responsiveness):
 	currentValue = currentValue + currentDelta
 	return currentDelta, currentValue
 
-def integrate(pos, vel, accel, damp):
+def integrate(pos, vel, accel, damp, max_speed=None):
 	'''
 	Apply acceleration and damping to a position and velocity.
 	@param pos: The current position (scalar or vector of degree N).
 	@param vel: The current velocity (scalar or vector of degree N).
 	@param accel: The acceleration (scalar or vector of degree N).
 	@param damp: The damping (scalar).
+	@param max_speed: The maximum speed, or None.
 	@return: tuple(new position, new velocity).
 	'''
 	vel_new = (vel + accel) * (1.0 - damp)
+	if max_speed is not None:
+		vel_new.magnitude = min(vel_new.magnitude, max_speed)
 	pos_new = pos + vel_new
 	return pos_new, vel_new
 

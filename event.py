@@ -161,6 +161,25 @@ class WeakEvent(Event):
 	def __init__(self, message, body):
 		super(WeakEvent, self).__init__(message, body)
 
+@bat.utils.all_sensors_positive
+@bat.utils.owner
+def send(o):
+	'''Send an event from an object. Bind this to a Python logic brick.'''
+	msg = o['message']
+
+	if 'delay' in o:
+		delay = o['delay']
+	else:
+		delay = 0
+
+	if 'body' in o:
+		if o['body'] == 'self':
+			WeakEvent(msg, o).send(delay)
+		else:
+			Event(msg, o['body']).send(delay)
+	else:
+		Event(msg).send(delay)
+
 
 class SceneDispatch(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 	'''
@@ -191,7 +210,7 @@ class SceneDispatch(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 					bge.logic.getCurrentScene())
 			try:
 				fn(*args, **kwargs)
-			except Exception as e:
+			except Exception:
 				SceneDispatch.log.error("Exception while executing deferred "
 						"function %s in %s", fn,
 						bge.logic.getCurrentScene(), exc_info=1)
