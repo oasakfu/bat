@@ -22,6 +22,8 @@ import bge
 import bat.bats
 import bat.containers
 
+log = logging.getLogger(__name__)
+
 class EventBus(metaclass=bat.bats.Singleton):
 	'''
 	Delivers messages to listeners. The listeners will be notified in the
@@ -161,11 +163,21 @@ class WeakEvent(Event):
 	def __init__(self, message, body):
 		super(WeakEvent, self).__init__(message, body)
 
-@bat.utils.all_sensors_positive
-@bat.utils.owner
-def send(o):
+def send(c):
 	'''Send an event from an object. Bind this to a Python logic brick.'''
-	msg = o['message']
+	o = c.owner
+	if bat.utils.allSensorsPositive(c):
+		try:
+			msg = o['message']
+		except KeyError:
+			log.info('%s triggered positive, but has no "message" property', o)
+			return
+	else:
+		try:
+			msg = o['message_off']
+		except KeyError:
+			log.info('%s triggered negative, but has no "message_off" property', o)
+			return
 
 	if 'delay' in o:
 		delay = o['delay']
