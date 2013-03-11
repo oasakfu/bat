@@ -599,6 +599,8 @@ class ActMusicStop(TargetedAct, BaseAct):
 	'''
 	def __init__(self, fade_rate=None, ob=None, target_descendant=None, name=None):
 		TargetedAct.__init__(self, ob, target_descendant)
+		if fade_rate is not None and not hasattr(fade_rate, '__sub__'):
+			raise TypeError('fade_rate must be numeric.')
 		self.fade_rate = fade_rate
 		self._name = name
 
@@ -914,7 +916,7 @@ class State:
 
 		# Clear line
 		target = None
-		debug = State.log.isEnabledFor(logging.DEBUG)
+		debug = State.log.isEnabledFor(5)
 		if debug:
 			sys.stdout.write('\rBlocked transitions:')
 		for state in self.transitions:
@@ -958,14 +960,34 @@ class Chapter(bat.bats.BX_GameObject):
 		self.zeroState = State(name="Zero")
 		self.rootState = self.zeroState.create_successor("Root")
 		self.currentState = self.zeroState
+		self.super_state = None
+		self.super_active = False
 
 	@bat.bats.expose
 	@bat.utils.controller_cls
 	def progress(self, c):
-		if self.currentState != None:
-			nextState = self.currentState.progress(c)
-			if nextState != None:
-				self.currentState.deactivate()
-				self.currentState = nextState
-				Chapter.log.info("Transitioned to %s", self.currentState)
-				self.currentState.activate(c)
+		# Try to run the super state first. If it transitions, then use that to
+		# set the next state.
+		if self.super_state is not None:
+			if not self.super_active:
+				self.super_state.activate(c)
+				self.super_active = True
+			next_state = self.super_state.progress(c)
+			if next_state is not None:
+				Chapter.log.info("Super state triggered")
+				self.super_state.deactivate()
+				self.super_active = False
+				self.transition(c, next_state)
+				return
+
+		# Otherwise, evaluate the current state to find the next transition.
+		if self.currentState is not None:
+			next_state = self.currentState.progress(c)
+			if next_state is not None:
+				self.transition(c, next_state)
+
+	def transition(self, c, state):
+		self.currentState.deactivate()
+		self.currentState = state
+		Chapter.log.info("Transitioned to %s", self.currentState)
+		self.currentState.activate(c)
