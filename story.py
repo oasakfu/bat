@@ -310,6 +310,25 @@ class BaseAct:
 	def execute(self, c):
 		pass
 
+	def resolve(self, ob, descendant_name=None):
+		if hasattr(ob, '__call__'):
+			# Object is a function; call it to resolve.
+			sig = inspect.signature(ob)
+			if len(sig.parameters) == 1:
+				ob = ob(self)
+			else:
+				ob = ob()
+
+		if ob is None:
+			ob = bge.logic.getCurrentController().owner
+		elif isinstance(ob, str):
+			# Object is a name; dereference it.
+			ob = bge.logic.getCurrentScene().objects[ob]
+
+		if descendant_name is not None:
+			ob = ob.childrenRecursive[descendant_name]
+		return ob
+
 	def __str__(self):
 		return self.__class__.__name__
 
@@ -320,16 +339,7 @@ class TargetedAct:
 
 	@property
 	def target(self):
-		ob = self.ob_or_name
-		if ob is None:
-			ob = bge.logic.getCurrentController().owner
-		elif isinstance(ob, str):
-			ob = bge.logic.getCurrentScene().objects[ob]
-
-		if self.descendant_name is not None:
-			ob = ob.childrenRecursive[self.descendant_name]
-
-		return ob
+		return self.resolve(self.ob_or_name, self.descendant_name)
 
 class ActStoreSet(BaseAct):
 	'''Write to the save game file.'''
@@ -516,6 +526,65 @@ class ActConstraintFade(TargetedAct, BaseAct):
 
 	def __str__(self):
 		return "ActConstraintFade(%s)" % (self.name)
+
+class ActCopyTransform(TargetedAct, BaseAct):
+	'''
+	Makes the targeted object copy the transform of another. If a referential is
+	provided, the transform will applied to the target as though it was the
+	referential object being transformed. This effectively uses the referential
+	as an offset for the transform.
+	'''
+	def __init__(self, other, referential=None, ob=None, target_descendant=None):
+		TargetedAct.__init__(self, ob, target_descendant)
+		self.other = other
+		self.referential = referential
+
+	def execute(self, c):
+		target = self.target
+		other = self.resolve(self.other)
+		if self.referential is not None:
+			referential = self.resolve(self.referential)
+		else:
+			referential = self.target
+
+		bat.bmath.set_rel_orn(target, other, referential)
+		bat.bmath.set_rel_pos(target, other, referential)
+
+	def __str__(self):
+		return "ActCopyTransform(%s)" % (self.other)
+
+class ActParentSet(TargetedAct, BaseAct):
+	'''
+	Makes the targeted object a child of another. After this, the target will be
+	constrained to the parent; physics simulations will not be run on it, and
+	animations will be applied in local space.
+	'''
+	def __init__(self, parent, referential=None, ob=None, target_descendant=None):
+		TargetedAct.__init__(self, ob, target_descendant)
+		self.parent = parent
+		self.referential = referential
+
+	def execute(self, c):
+		parent = self.resolve(self.parent)
+		self.target.setParent(parent)
+
+	def __str__(self):
+		return "ActParentSet(%s)" % (self.parent)
+
+class ActParentRemove(TargetedAct, BaseAct):
+	'''
+	Un-sets the parent of the target. After this, the target will be free to
+	move independently of the old parent.
+	'''
+	def __init__(self, ob=None, target_descendant=None):
+		TargetedAct.__init__(self, ob, target_descendant)
+
+	def execute(self, c):
+		target = self.target
+		target.removeParent()
+
+	def __str__(self):
+		return "ActParentRemove()"
 
 class ActSound(BaseAct):
 	'''Plays a short sound.'''
@@ -812,6 +881,7 @@ class State:
 		self.actions = []
 		self.transitions = []
 		self.subSteps = []
+		self.blocked_transitions = set()
 
 	def add_condition(self, condition):
 		'''Conditions control transition to this state.'''
@@ -888,7 +958,7 @@ class State:
 		self.execute(c)
 
 	def deactivate(self):
-		State.log.debug('Deactivating %s', self)
+		State.log.info('Deactivating %s', self)
 		for state in self.transitions:
 			state.parent_activated(False)
 		for state in self.subSteps:
@@ -902,7 +972,7 @@ class State:
 		'''Run all actions associated with this state.'''
 		for act in self.actions:
 			try:
-				State.log.debug('%s', act)
+				State.log.info('%s', act)
 				act.execute(c)
 			except Exception:
 				State.log.warn('Action %s failed', act, exc_info=1)
@@ -914,21 +984,29 @@ class State:
 			if state.test(c, False):
 				state.execute(c)
 
-		# Clear line
 		target = None
-		debug = State.log.isEnabledFor(5)
-		if debug:
-			sys.stdout.write('\rBlocked transitions:')
+
+		# Record debugging information, if enabled.
+		if State.log.isEnabledFor(10):
+			blocked_transitions = set()
+		else:
+			blocked_transitions = None
+
+		# Check for transitions.
 		for state in self.transitions:
-			if state.test(c, debug):
+			if state.test(c, blocked_transitions):
 				target = state
 				break
-		if debug:
-			sys.stdout.write(' --END--')
-			sys.stdout.flush()
+
+		# Print debugging information.
+		if blocked_transitions != self.blocked_transitions:
+			if len(blocked_transitions) > 0:
+				State.log.debug('Blocked transitions: %s', blocked_transitions)
+			self.blocked_transitions = blocked_transitions
+
 		return target
 
-	def test(self, c, debug):
+	def test(self, c, blocked_transitions):
 		'''Check whether this state is ready to be transitioned to.'''
 		failed_condition = None
 		for condition in self.conditions:
@@ -936,8 +1014,8 @@ class State:
 				failed_condition = condition
 				break
 		if failed_condition is not None:
-			if debug:
-				sys.stdout.write(' %s#%s' % (self.name, failed_condition.get_short_name()))
+			if blocked_transitions is not None:
+				blocked_transitions.add('%s#%s' % (self.name, failed_condition.get_short_name()))
 			return False
 		else:
 			return True
@@ -966,8 +1044,16 @@ class Chapter(bat.bats.BX_GameObject):
 	@bat.bats.expose
 	@bat.utils.controller_cls
 	def progress(self, c):
-		# Try to run the super state first. If it transitions, then use that to
-		# set the next state.
+		# Evaluate the current state first to find the next transition.
+		if self.currentState is not None:
+			next_state = self.currentState.progress(c)
+			if next_state is not None:
+				self.transition(c, next_state)
+				return
+
+		# If no transitions occur, evaluate the super state. This is done second
+		# because the super state is global, so the user may want to override it
+		# locally.
 		if self.super_state is not None:
 			if not self.super_active:
 				self.super_state.activate(c)
@@ -977,13 +1063,6 @@ class Chapter(bat.bats.BX_GameObject):
 				Chapter.log.info("Super state triggered")
 				self.super_state.deactivate()
 				self.super_active = False
-				self.transition(c, next_state)
-				return
-
-		# Otherwise, evaluate the current state to find the next transition.
-		if self.currentState is not None:
-			next_state = self.currentState.progress(c)
-			if next_state is not None:
 				self.transition(c, next_state)
 
 	def transition(self, c, state):
