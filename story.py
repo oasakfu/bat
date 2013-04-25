@@ -534,10 +534,11 @@ class ActCopyTransform(TargetedAct, BaseAct):
 	referential object being transformed. This effectively uses the referential
 	as an offset for the transform.
 	'''
-	def __init__(self, other, referential=None, ob=None, target_descendant=None):
+	def __init__(self, other, referential=None, halt=True, ob=None, target_descendant=None):
 		TargetedAct.__init__(self, ob, target_descendant)
 		self.other = other
 		self.referential = referential
+		self.halt = halt
 
 	def execute(self, c):
 		target = self.target
@@ -549,6 +550,9 @@ class ActCopyTransform(TargetedAct, BaseAct):
 
 		bat.bmath.set_rel_orn(target, other, referential)
 		bat.bmath.set_rel_pos(target, other, referential)
+		if self.halt == True:
+			target.localLinearVelocity = (0, 0, 0)
+			target.localAngularVelocity = (0, 0, 0)
 
 	def __str__(self):
 		return "ActCopyTransform(%s)" % (self.other)
