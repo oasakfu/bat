@@ -985,7 +985,7 @@ class State:
 		'''Find the next state that has all conditions met, or None if no such
 		state exists.'''
 		for state in self.subSteps:
-			if state.test(c, False):
+			if state.test(c, None):
 				state.execute(c)
 
 		target = None
