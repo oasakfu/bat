@@ -151,6 +151,7 @@ SRC_KEYBOARD = 1<<0
 SRC_JOYSTICK = 1<<1
 SRC_JOYSTICK_AXIS = 1<<2
 SRC_MOUSE = 1<<3
+SRC_MOUSE_AXIS = 1<<4
 
 class Button:
 	'''A simple button (0 dimensions).'''
@@ -453,7 +454,7 @@ class JoystickDpadSensor:
 			return False
 
 class JoystickAxisSensor:
-	'''For detecting DPad presses.'''
+	'''For detecting joystick movement.'''
 	source = SRC_JOYSTICK | SRC_JOYSTICK_AXIS
 
 	def __init__(self, axis_index):
@@ -465,6 +466,88 @@ class JoystickAxisSensor:
 		except IndexError:
 			# Joystick may not be plugged in.
 			return False
+
+
+class MouseAdapter(metaclass=bat.bats.Singleton):
+	'''
+	Ensures that mouse position is only read once per frame. This allows
+	multiple callers to get and set the mouse position.
+	'''
+	def __init__(self):
+		self._read_pos()
+		#bge.logic.mouse.visible = True
+
+	@bat.bats.once_per_tick
+	def _read_pos(self):
+		pos = bge.logic.mouse.position
+		self._pos = list(pos)
+		#print(self._pos)
+
+	@property
+	def position(self):
+		self._read_pos()
+		return self._pos
+	@position.setter
+	def position(self, pos):
+		self._pos = pos
+		bge.logic.mouse.position = tuple(pos)
+
+allow_mouse_capture = True
+'''
+If set to false, the mouse will not be captured. When the mouse is captured, it
+is returned to the centre of the screen on every frame. This is required for the
+mouse look sensor, so if this is set to False the mouse look sensors will always
+return zero.
+'''
+
+class MouseLookSensor:
+	'''
+	For detecting mouse movement in joystick-emulation mode (i.e. not for
+	pointing).
+	'''
+
+	source = SRC_MOUSE | SRC_MOUSE_AXIS
+
+	def __init__(self, axis_index, multiplier=1.0):
+		self.first = True
+		self.axis_index = axis_index
+		self.multiplier = multiplier
+		self.current_position = None
+
+	def evaluate(self, active_keys, js):
+		if not allow_mouse_capture:
+			return 0
+
+		# Because the mouse is placed on pixels, sometimes the centre of the
+		# screen is not at (0.5, 0.5).
+		if self.axis_index == 0:
+			extent = bge.render.getWindowWidth()
+		else:
+			extent = bge.render.getWindowHeight()
+		actual_centre = int(extent / 2.0) / extent
+
+		pos = MouseAdapter().position
+		offset = bat.bmath.clamp(-1, 1, (pos[self.axis_index] - actual_centre) * 2.0)
+		offset *= self.multiplier
+		pos[self.axis_index] = 0.5
+		MouseAdapter().position = pos
+		if self.first:
+			# Throw first frame away so position can be reset.
+			self.first = False
+			return 0
+		else:
+			return offset
+
+class MouseButtonSensor:
+	'''For detecting mouse button presses.'''
+	source = SRC_MOUSE
+
+	def __init__(self, key):
+		self.key = key
+
+	def evaluate(self, active_keys, js):
+		return self.key in bge.logic.mouse.active_events
+
 
 class Handler:
 	'''
