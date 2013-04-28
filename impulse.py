@@ -38,7 +38,7 @@ class Input(metaclass=bat.bats.Singleton):
 
 	log = logging.getLogger(__name__ + '.Input')
 
-	PRI = {'PLAYER': 0, 'STORY': 1, 'DIALOGUE': 2, 'MENU': 3}
+	PRI = {'PLAYER': 0, 'STORY': 1, 'DIALOGUE': 2, 'MENU': 3, 'MAINMENU': 4}
 
 	def __init__(self):
 		self.handlers = bat.containers.SafePriorityStack()
@@ -190,6 +190,9 @@ class Controller(metaclass=abc.ABCMeta):
 	@abc.abstractclassmethod
 	def unbind(self, sensor_type, *sensor_opts):
 		pass
+	@abc.abstractclassmethod
+	def unbind_all(self):
+		pass
 
 class Button(Controller):
 	'''A simple button (0 dimensions).'''
@@ -217,6 +220,9 @@ class Button(Controller):
 			if sensor.matches(sensor_type, *sensor_opts):
 				Button.log.info('Unbinding %s from %s', sensor, self.name)
 				self.sensors.remove(sensor)
+
+	def unbind_all(self):
+		self.sensors = []
 
 	@property
 	def activated(self):
@@ -299,6 +305,11 @@ class DPad1D(Controller):
 			if sensor.matches(sensor_type, *sensor_opts):
 				DPad1D.log.info('Unbinding %s from %s/axis', sensor, self.name)
 				self.axes.remove(sensor)
+
+	def unbind_all(self):
+		self.next.unbind_all()
+		self.prev.unbind_all()
+		self.axes = []
 
 	def update(self, js):
 		self.next.update(js)
@@ -423,6 +434,14 @@ class DPad2D(Controller):
 			if sensor.matches(sensor_type, *sensor_opts):
 				DPad2D.log.info('Unbinding %s from %s/yaxis', sensor, self.name)
 				self.yaxes.remove(sensor)
+
+	def unbind_all(self):
+		self.up.unbind_all()
+		self.down.unbind_all()
+		self.left.unbind_all()
+		self.right.unbind_all()
+		self.xaxes = []
+		self.yaxes = []
 
 	def update(self, js):
 		self.up.update(js)
