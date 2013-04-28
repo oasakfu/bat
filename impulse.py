@@ -569,9 +569,6 @@ class Sensor(metaclass=abc.ABCMeta):
 	def get_parameters(self):
 		return ()
 
-	def __str__(self):
-		return '%s(%s)' % (self.s_type, self.get_parameters())
-
 class KeyboardSensor(Sensor):
 	'''For keyboard keys.'''
 	source = SRC_KEYBOARD
@@ -586,6 +583,12 @@ class KeyboardSensor(Sensor):
 	def get_parameters(self):
 		return (self.from_keycode(self.key),)
 
+	def __str__(self):
+		name = self.from_keycode(self.key)
+		if name.endswith('key'):
+			name = name[:-3]
+		return name
+
 class JoystickButtonSensor(Sensor):
 	'''For regular joystick buttons.'''
 	source = SRC_JOYSTICK
@@ -599,6 +602,9 @@ class JoystickButtonSensor(Sensor):
 
 	def get_parameters(self):
 		return (self.button,)
+
+	def __str__(self):
+		return "js-btn-%d" % self.button
 
 class JoystickDpadSensor(Sensor):
 	'''For detecting DPad presses.'''
@@ -619,6 +625,9 @@ class JoystickDpadSensor(Sensor):
 	def get_parameters(self):
 		return (self.hat_index, self.button_flag)
 
+	def __str__(self):
+		return "js-pad-%d-%d" % (self.hat_index, self.button_flag)
+
 class JoystickAxisSensor(Sensor):
 	'''For detecting joystick movement.'''
 	source = SRC_JOYSTICK | SRC_JOYSTICK_AXIS
@@ -636,6 +645,9 @@ class JoystickAxisSensor(Sensor):
 
 	def get_parameters(self):
 		return (self.axis_index,)
+
+	def __str__(self):
+		return "js-axis-%d" % self.axis_index
 
 
 class MouseAdapter(metaclass=bat.bats.Singleton):
@@ -712,6 +724,9 @@ class MouseLookSensor(Sensor):
 	def get_parameters(self):
 		return (self.axis_index,)
 
+	def __str__(self):
+		return "mouse-axis-%d" % self.axis_index
+
 class MouseButtonSensor(Sensor):
 	'''For detecting mouse button presses.'''
 	source = SRC_MOUSE
@@ -725,6 +740,9 @@ class MouseButtonSensor(Sensor):
 
 	def get_parameters(self):
 		return (self.from_keycode(self.key),)
+
+	def __str__(self):
+		return self.from_keycode(self.key)
 
 sensor_types = {
 	KeyboardSensor.s_type: KeyboardSensor,
