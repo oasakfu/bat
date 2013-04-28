@@ -16,6 +16,7 @@
 #
 
 import logging
+import abc
 
 import bge
 import mathutils
@@ -109,12 +110,29 @@ class Input(metaclass=bat.bats.Singleton):
 	def clear_buttons(self):
 		self.buttons = []
 
-	def add_button(self, sensor):
+	def add_controller(self, controller):
 		'''
 		Add a button to the input manager. It will be evaluated on every logic
 		tick, and the handers will be notified.
 		'''
-		self.buttons.append(sensor)
+		self.buttons.append(controller)
+
+	def get_controller(self, name):
+		for controller in self.buttons:
+			if controller.name == name:
+				return controller
+		raise KeyError('No controller named %s' % name)
+
+	def bind(self, path, sensor_type, *sensor_opts):
+		'Bind a sensor to a controller with the given path.'
+		pathcs = path.split('/')
+		controller = self.get_controller(pathcs[0])
+		controller.bind('/'.join(pathcs[1:]), sensor_type, *sensor_opts)
+
+	def unbind(self, sensor_type, *sensor_opts):
+		'Unbind a sensor from all controllers.'
+		for controller in self.buttons:
+			controller.unbind(sensor_type, *sensor_opts)
 
 	def add_handler(self, handler, priority='PLAYER'):
 		'''
@@ -153,7 +171,25 @@ SRC_JOYSTICK_AXIS = 1<<2
 SRC_MOUSE = 1<<3
 SRC_MOUSE_AXIS = 1<<4
 
-class Button:
+class Controller(metaclass=abc.ABCMeta):
+	def create_sensor(self, sensor_type, *sensor_opts):
+		return sensor_types[sensor_type](*sensor_opts)
+
+	@abc.abstractclassmethod
+	def update(self, js):
+		pass
+	@abc.abstractclassmethod
+	def get_char(self):
+		return None
+
+	@abc.abstractclassmethod
+	def bind(self, path, sensor_type, *sensor_opts):
+		pass
+	@abc.abstractclassmethod
+	def unbind(self, sensor_type, *sensor_opts):
+		pass
+
+class Button(Controller):
 	'''A simple button (0 dimensions).'''
 
 	log = logging.getLogger(__name__ + '.Button')
@@ -166,6 +202,16 @@ class Button:
 		self.positive = False
 		self.triggered = False
 		self.source = SRC_NONE
+
+	def bind(self, path, sensor_type, *sensor_opts):
+		if path != '':
+			raise KeyError('No controller called "%s"' % path)
+		self.sensors.append(self.create_sensor(sensor_type, *sensor_opts))
+
+	def unbind(self, sensor_type, *sensor_opts):
+		for sensor in self.sensors[:]:
+			if sensor.matches(sensor_type, *sensor_opts):
+				self.sensors.remove(sensor)
 
 	@property
 	def activated(self):
@@ -204,7 +250,7 @@ class Button:
 
 AXIS_EPSILON = 0.01
 
-class DPad1D:
+class DPad1D(Controller):
 	'''
 	Accumulates directional input (1 dimension). Useful for things like L/R
 	shoulder buttons.
@@ -226,6 +272,23 @@ class DPad1D:
 		self.dominant = None
 		self.triggered = False
 		self.source = SRC_NONE
+
+	def bind(self, path, sensor_type, *sensor_opts):
+		if path == 'next':
+			self.next.bind('', sensor_type, *sensor_opts)
+		elif path == 'prev':
+			self.prev.bind('', sensor_type, *sensor_opts)
+		elif path == 'axes':
+			self.axes.append(self.create_sensor(sensor_type, *sensor_opts))
+		else:
+			raise KeyError('No controller called "%s"' % path)
+
+	def unbind(self, sensor_type, *sensor_opts):
+		self.next.unbind(sensor_type, *sensor_opts)
+		self.prev.unbind(sensor_type, *sensor_opts)
+		for sensor in self.axes[:]:
+			if sensor.matches(sensor_type, *sensor_opts):
+				self.axes.remove(sensor)
 
 	def update(self, js):
 		self.next.update(js)
@@ -285,7 +348,7 @@ class DPad1D:
 	def __str__(self):
 		return "Button %s - direction: %s" % (self.name, self.direction)
 
-class DPad2D:
+class DPad2D(Controller):
 	'''
 	Accumulates directional input (2 dimensions) - from directional pads,
 	joysticks, and nominated keyboard keys.
@@ -314,6 +377,34 @@ class DPad2D:
 		self.triggered_repeat = False
 		self.repeat_delay = 0
 		self.source = SRC_NONE
+
+	def bind(self, path, sensor_type, *sensor_opts):
+		if path == 'up':
+			self.up.bind('', sensor_type, *sensor_opts)
+		elif path == 'down':
+			self.down.bind('', sensor_type, *sensor_opts)
+		elif path == 'left':
+			self.left.bind('', sensor_type, *sensor_opts)
+		elif path == 'right':
+			self.right.bind('', sensor_type, *sensor_opts)
+		elif path == 'xaxis':
+			self.xaxes.append(self.create_sensor(sensor_type, *sensor_opts))
+		elif path == 'yaxis':
+			self.yaxes.append(self.create_sensor(sensor_type, *sensor_opts))
+		else:
+			raise KeyError('No controller called "%s"' % path)
+
+	def unbind(self, sensor_type, *sensor_opts):
+		self.up.unbind(sensor_type, *sensor_opts)
+		self.down.unbind(sensor_type, *sensor_opts)
+		self.left.unbind(sensor_type, *sensor_opts)
+		self.right.unbind(sensor_type, *sensor_opts)
+		for sensor in self.xaxes[:]:
+			if sensor.matches(sensor_type, *sensor_opts):
+				self.xaxes.remove(sensor)
+		for sensor in self.yaxes[:]:
+			if sensor.matches(sensor_type, *sensor_opts):
+				self.yaxes.remove(sensor)
 
 	def update(self, js):
 		self.up.update(js)
@@ -418,19 +509,44 @@ class DPad2D:
 	def __str__(self):
 		return "Button %s - direction: %s" % (self.name, self.direction)
 
-class KeyboardSensor:
+
+class Sensor(metaclass=abc.ABCMeta):
+	def to_keycode(self, name):
+		return bge.events.__dict__[name.upper()]
+
+	@abc.abstractmethod
+	def evaluate(self, active_keys, js):
+		pass
+
+	def matches(self, sensor_type, *parameters):
+		if sensor_type != self.s_type:
+			return False
+		if parameters != self.get_parameters():
+			return False
+		return True
+
+	@abc.abstractmethod
+	def get_parameters(self):
+		return []
+
+class KeyboardSensor(Sensor):
 	'''For keyboard keys.'''
 	source = SRC_KEYBOARD
+	s_type = "keyboard"
 
 	def __init__(self, key):
-		self.key = key
+		self.key = self.to_keycode(key)
 
 	def evaluate(self, active_keys, js):
 		return self.key in active_keys
 
-class JoystickButtonSensor:
+	def get_parameters(self):
+		return [bge.events.EventToString(self.key)]
+
+class JoystickButtonSensor(Sensor):
 	'''For regular joystick buttons.'''
 	source = SRC_JOYSTICK
+	s_type = "joybutton"
 
 	def __init__(self, button):
 		self.button = button
@@ -438,9 +554,13 @@ class JoystickButtonSensor:
 	def evaluate(self, active_keys, js):
 		return self.button in js.getButtonActiveList()
 
-class JoystickDpadSensor:
+	def get_parameters(self):
+		return [self.button]
+
+class JoystickDpadSensor(Sensor):
 	'''For detecting DPad presses.'''
 	source = SRC_JOYSTICK
+	s_type = "joydpad"
 
 	def __init__(self, hat_index, button_flag):
 		self.hat_index = hat_index
@@ -453,9 +573,13 @@ class JoystickDpadSensor:
 			# Joystick may not be plugged in.
 			return False
 
-class JoystickAxisSensor:
+	def get_parameters(self):
+		return [self.hat_index, self.button_flag]
+
+class JoystickAxisSensor(Sensor):
 	'''For detecting joystick movement.'''
 	source = SRC_JOYSTICK | SRC_JOYSTICK_AXIS
+	s_type = "joystick"
 
 	def __init__(self, axis_index):
 		self.axis_index = axis_index
@@ -466,6 +590,9 @@ class JoystickAxisSensor:
 		except IndexError:
 			# Joystick may not be plugged in.
 			return False
+
+	def get_parameters(self):
+		return [self.axis_index]
 
 
 class MouseAdapter(metaclass=bat.bats.Singleton):
@@ -500,18 +627,19 @@ mouse look sensor, so if this is set to False the mouse look sensors will always
 return zero.
 '''
 
-class MouseLookSensor:
+class MouseLookSensor(Sensor):
 	'''
 	For detecting mouse movement in joystick-emulation mode (i.e. not for
 	pointing).
 	'''
 
 	source = SRC_MOUSE | SRC_MOUSE_AXIS
+	s_type = "mouselook"
+	multiplier = 1.0
 
-	def __init__(self, axis_index, multiplier=1.0):
+	def __init__(self, axis_index):
 		self.first = True
 		self.axis_index = axis_index
-		self.multiplier = multiplier
 		self.current_position = None
 
 	def evaluate(self, active_keys, js):
@@ -538,16 +666,31 @@ class MouseLookSensor:
 		else:
 			return offset
 
-class MouseButtonSensor:
+	def get_parameters(self):
+		return [self.axis_index]
+
+class MouseButtonSensor(Sensor):
 	'''For detecting mouse button presses.'''
 	source = SRC_MOUSE
+	s_type = "mousebutton"
 
 	def __init__(self, key):
-		self.key = key
+		self.key = self.to_keycode(key)
 
 	def evaluate(self, active_keys, js):
 		return self.key in bge.logic.mouse.active_events
 
+	def get_parameters(self):
+		return [bge.events.EventToString(self.key)]
+
+sensor_types = {
+	KeyboardSensor.s_type: KeyboardSensor,
+	JoystickButtonSensor.s_type: JoystickButtonSensor,
+	JoystickDpadSensor.s_type: JoystickDpadSensor,
+	JoystickAxisSensor.s_type: JoystickAxisSensor,
+	MouseLookSensor.s_type: MouseLookSensor,
+	MouseButtonSensor.s_type: MouseButtonSensor,
+	}
 
 class Handler:
 	'''
