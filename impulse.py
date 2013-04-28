@@ -47,6 +47,7 @@ class Input(metaclass=bat.bats.Singleton):
 		self.sequence_map = {}
 		self.max_seq_len = 0
 		self.sequence = ""
+		self.capturing = None
 
 	@bat.bats.expose
 	@bat.utils.controller_cls
@@ -54,6 +55,10 @@ class Input(metaclass=bat.bats.Singleton):
 	def process(self, c):
 		'''Distribute all events to the listeners.'''
 		js = c.sensors['Joystick']
+
+		if self.capturing is not None:
+			self._capture()
+			return
 
 		for btn in self.buttons:
 			btn.update(js)
@@ -123,18 +128,86 @@ class Input(metaclass=bat.bats.Singleton):
 				return controller
 		raise KeyError('No controller named %s' % name)
 
+	def get_root_controller(self, path):
+		pathcs = path.split('/')
+		controller = self.get_controller(pathcs[0])
+		return controller, '/'.join(pathcs[1:])
+
 	def bind(self, path, sensor_type, *sensor_opts):
 		'Bind a sensor to a controller with the given path.'
 		Input.log.info('Binding %s to %s', sensor_type, path)
-		pathcs = path.split('/')
-		controller = self.get_controller(pathcs[0])
-		controller.bind('/'.join(pathcs[1:]), sensor_type, *sensor_opts)
+		controller, remainder = self.get_root_controller(path)
+		controller.bind(remainder, sensor_type, *sensor_opts)
 
 	def unbind(self, sensor_type, *sensor_opts):
 		'Unbind a sensor from all controllers.'
 		Input.log.info('Unbinding %s', sensor_type)
 		for controller in self.buttons:
 			controller.unbind(sensor_type, *sensor_opts)
+
+	def _capture(self):
+		def _input_captured(params):
+			bat.event.Event('InputCaptured', params).send(1)
+			self.capturing = None
+
+		keyboard = bge.logic.keyboard
+		if 'BUTTON' in self.capturing:
+			for key in keyboard.active_events:
+				key = from_keycode(key)
+				_input_captured(('keyboard', key))
+				return
+
+		js = get_joystick()
+		if js is not None:
+			if 'BUTTON' in self.capturing:
+				if len(js.activeButtons) > 0:
+					_input_captured(('joybutton', js.activeButtons[0]))
+					return
+			if 'BUTTON' in self.capturing:
+				for i, hat_value in enumerate(js.hatValues):
+					if hat_value == 0:
+						continue
+					if hat_value & 1 != 0:
+						hat_value = hat_value & 1
+					elif hat_value & 2 != 0:
+						hat_value = hat_value & 2
+					elif hat_value & 4 != 0:
+						hat_value = hat_value & 4
+					elif hat_value & 8 != 0:
+						hat_value = hat_value & 8
+					_input_captured(('joydpad', i, hat_value))
+					return
+			if 'AXIS' in self.capturing:
+				for i, axis_value in enumerate(js.axisValues):
+					if abs(axis_value) < 0.5:
+						continue
+					_input_captured(('joystick', i))
+					return
+
+		mouse = bge.logic.mouse
+		if 'BUTTON' in self.capturing:
+			for key in mouse.active_events:
+				if key in {bge.events.MOUSEX, bge.events.MOUSEY}:
+					# Mouse movement generates events... :[
+					continue
+				key = from_keycode(key)
+				_input_captured(('mousebutton', key))
+				return
+		if 'AXIS' in self.capturing:
+			pos = mouse.position
+			for i in range(2):
+				if abs(pos[i] - self.capture_mouse_pos[i]) > 0.2:
+					_input_captured(('mouselook', i))
+					return
+
+	def start_capturing(self, sensor_categories):
+		self.capture_mouse_pos = bge.logic.mouse.position
+		self.capturing = sensor_categories
+
+	def start_capturing_for(self, path):
+		controller, remainder = self.get_root_controller(path)
+		sensor_cats = controller.get_sensor_categories(remainder)
+		self.start_capturing(sensor_cats)
 
 	def add_handler(self, handler, priority='PLAYER'):
 		'''
@@ -193,6 +266,9 @@ class Controller(metaclass=abc.ABCMeta):
 	@abc.abstractclassmethod
 	def unbind_all(self):
 		pass
+	@abc.abstractclassmethod
+	def get_sensor_categories(self, path):
+		return set()
 
 class Button(Controller):
 	'''A simple button (0 dimensions).'''
@@ -223,6 +299,11 @@ class Button(Controller):
 
 	def unbind_all(self):
 		self.sensors = []
+
+	def get_sensor_categories(self, path):
+		if path != '':
+			raise KeyError('No controller called "%s"' % path)
+		return {'BUTTON'}
 
 	@property
 	def activated(self):
@@ -291,7 +372,7 @@ class DPad1D(Controller):
 			self.next.bind('', sensor_type, *sensor_opts)
 		elif path == 'prev':
 			self.prev.bind('', sensor_type, *sensor_opts)
-		elif path == 'axes':
+		elif path == 'axis':
 			sensor = self.create_sensor(sensor_type, *sensor_opts)
 			DPad1D.log.info('Binding %s to %s/axis', sensor, self.name)
 			self.axes.append()
@@ -310,6 +391,14 @@ class DPad1D(Controller):
 		self.next.unbind_all()
 		self.prev.unbind_all()
 		self.axes = []
+
+	def get_sensor_categories(self, path):
+		if path in {'next', 'prev'}:
+			return {'BUTTON'}
+		elif path == 'axis':
+			return {'AXIS'}
+		else:
+			raise KeyError('No controller called "%s"' % path)
 
 	def update(self, js):
 		self.next.update(js)
@@ -443,6 +532,14 @@ class DPad2D(Controller):
 		self.xaxes = []
 		self.yaxes = []
 
+	def get_sensor_categories(self, path):
+		if path in {'up', 'down', 'left', 'right'}:
+			return {'BUTTON'}
+		elif path in {'xaxis', 'yaxis'}:
+			return {'AXIS'}
+		else:
+			raise KeyError('No controller called "%s"' % path)
+
 	def update(self, js):
 		self.up.update(js)
 		self.down.update(js)
@@ -546,13 +643,17 @@ class DPad2D(Controller):
 	def __str__(self):
 		return "Button %s - direction: %s" % (self.name, self.direction)
 
+def to_keycode(name):
+	return bge.events.__dict__[name.upper()]
+def from_keycode(key):
+	return bge.events.EventToString(key).lower()
+def get_joystick():
+	if len(bge.logic.joysticks) > 0:
+		return bge.logic.joysticks[0]
+	else:
+		return None
 
 class Sensor(metaclass=abc.ABCMeta):
-	def to_keycode(self, name):
-		return bge.events.__dict__[name.upper()]
-	def from_keycode(self, key):
-		return bge.events.EventToString(key).lower()
-
 	@abc.abstractmethod
 	def evaluate(self, active_keys, js):
 		pass
@@ -575,16 +676,16 @@ class KeyboardSensor(Sensor):
 	s_type = "keyboard"
 
 	def __init__(self, key):
-		self.key = self.to_keycode(key)
+		self.key = to_keycode(key)
 
 	def evaluate(self, active_keys, js):
 		return self.key in active_keys
 
 	def get_parameters(self):
-		return (self.from_keycode(self.key),)
+		return (from_keycode(self.key),)
 
 	def __str__(self):
-		name = self.from_keycode(self.key)
+		name = from_keycode(self.key)
 		if name.endswith('key'):
 			name = name[:-3]
 		return name
@@ -733,16 +834,16 @@ class MouseButtonSensor(Sensor):
 	s_type = "mousebutton"
 
 	def __init__(self, key):
-		self.key = self.to_keycode(key)
+		self.key = to_keycode(key)
 
 	def evaluate(self, active_keys, js):
 		return self.key in bge.logic.mouse.active_events
 
 	def get_parameters(self):
-		return (self.from_keycode(self.key),)
+		return (from_keycode(self.key),)
 
 	def __str__(self):
-		return self.from_keycode(self.key)
+		return from_keycode(self.key)
 
 sensor_types = {
 	KeyboardSensor.s_type: KeyboardSensor,
