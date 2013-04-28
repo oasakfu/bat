@@ -125,12 +125,14 @@ class Input(metaclass=bat.bats.Singleton):
 
 	def bind(self, path, sensor_type, *sensor_opts):
 		'Bind a sensor to a controller with the given path.'
+		Input.log.info('Binding %s to %s', sensor_type, path)
 		pathcs = path.split('/')
 		controller = self.get_controller(pathcs[0])
 		controller.bind('/'.join(pathcs[1:]), sensor_type, *sensor_opts)
 
 	def unbind(self, sensor_type, *sensor_opts):
 		'Unbind a sensor from all controllers.'
+		Input.log.info('Unbinding %s', sensor_type)
 		for controller in self.buttons:
 			controller.unbind(sensor_type, *sensor_opts)
 
@@ -206,11 +208,14 @@ class Button(Controller):
 	def bind(self, path, sensor_type, *sensor_opts):
 		if path != '':
 			raise KeyError('No controller called "%s"' % path)
-		self.sensors.append(self.create_sensor(sensor_type, *sensor_opts))
+		sensor = self.create_sensor(sensor_type, *sensor_opts)
+		Button.log.info('Binding %s to %s', sensor, self.name)
+		self.sensors.append(sensor)
 
 	def unbind(self, sensor_type, *sensor_opts):
 		for sensor in self.sensors[:]:
 			if sensor.matches(sensor_type, *sensor_opts):
+				Button.log.info('Unbinding %s from %s', sensor, self.name)
 				self.sensors.remove(sensor)
 
 	@property
@@ -256,6 +261,8 @@ class DPad1D(Controller):
 	shoulder buttons.
 	'''
 
+	log = logging.getLogger(__name__ + '.DPad1D')
+
 	def __init__(self, name, char_next, char_prev):
 		self.name = name
 		self.char_next = char_next
@@ -279,7 +286,9 @@ class DPad1D(Controller):
 		elif path == 'prev':
 			self.prev.bind('', sensor_type, *sensor_opts)
 		elif path == 'axes':
-			self.axes.append(self.create_sensor(sensor_type, *sensor_opts))
+			sensor = self.create_sensor(sensor_type, *sensor_opts)
+			DPad1D.log.info('Binding %s to %s/axis', sensor, self.name)
+			self.axes.append()
 		else:
 			raise KeyError('No controller called "%s"' % path)
 
@@ -288,6 +297,7 @@ class DPad1D(Controller):
 		self.prev.unbind(sensor_type, *sensor_opts)
 		for sensor in self.axes[:]:
 			if sensor.matches(sensor_type, *sensor_opts):
+				DPad1D.log.info('Unbinding %s from %s/axis', sensor, self.name)
 				self.axes.remove(sensor)
 
 	def update(self, js):
@@ -354,6 +364,8 @@ class DPad2D(Controller):
 	joysticks, and nominated keyboard keys.
 	'''
 
+	log = logging.getLogger(__name__ + '.DPad2D')
+
 	def __init__(self, name, char_up, char_down, char_left, char_right):
 		self.name = name
 		self.char_up = char_up
@@ -388,8 +400,12 @@ class DPad2D(Controller):
 		elif path == 'right':
 			self.right.bind('', sensor_type, *sensor_opts)
 		elif path == 'xaxis':
+			sensor = self.create_sensor(sensor_type, *sensor_opts)
+			DPad2D.log.info('Binding %s to %s/xaxis', sensor, self.name)
 			self.xaxes.append(self.create_sensor(sensor_type, *sensor_opts))
 		elif path == 'yaxis':
+			sensor = self.create_sensor(sensor_type, *sensor_opts)
+			DPad2D.log.info('Binding %s to %s/yaxis', sensor, self.name)
 			self.yaxes.append(self.create_sensor(sensor_type, *sensor_opts))
 		else:
 			raise KeyError('No controller called "%s"' % path)
@@ -401,9 +417,11 @@ class DPad2D(Controller):
 		self.right.unbind(sensor_type, *sensor_opts)
 		for sensor in self.xaxes[:]:
 			if sensor.matches(sensor_type, *sensor_opts):
+				DPad2D.log.info('Unbinding %s from %s/xaxis', sensor, self.name)
 				self.xaxes.remove(sensor)
 		for sensor in self.yaxes[:]:
 			if sensor.matches(sensor_type, *sensor_opts):
+				DPad2D.log.info('Unbinding %s from %s/yaxis', sensor, self.name)
 				self.yaxes.remove(sensor)
 
 	def update(self, js):
@@ -513,6 +531,8 @@ class DPad2D(Controller):
 class Sensor(metaclass=abc.ABCMeta):
 	def to_keycode(self, name):
 		return bge.events.__dict__[name.upper()]
+	def from_keycode(self, key):
+		return bge.events.EventToString(key).lower()
 
 	@abc.abstractmethod
 	def evaluate(self, active_keys, js):
@@ -522,12 +542,16 @@ class Sensor(metaclass=abc.ABCMeta):
 		if sensor_type != self.s_type:
 			return False
 		if parameters != self.get_parameters():
+			print(self.get_parameters(), parameters)
 			return False
 		return True
 
 	@abc.abstractmethod
 	def get_parameters(self):
-		return []
+		return ()
+
+	def __str__(self):
+		return '%s(%s)' % (self.s_type, self.get_parameters())
 
 class KeyboardSensor(Sensor):
 	'''For keyboard keys.'''
@@ -541,7 +565,7 @@ class KeyboardSensor(Sensor):
 		return self.key in active_keys
 
 	def get_parameters(self):
-		return [bge.events.EventToString(self.key)]
+		return (self.from_keycode(self.key),)
 
 class JoystickButtonSensor(Sensor):
 	'''For regular joystick buttons.'''
@@ -555,7 +579,7 @@ class JoystickButtonSensor(Sensor):
 		return self.button in js.getButtonActiveList()
 
 	def get_parameters(self):
-		return [self.button]
+		return (self.button,)
 
 class JoystickDpadSensor(Sensor):
 	'''For detecting DPad presses.'''
@@ -574,7 +598,7 @@ class JoystickDpadSensor(Sensor):
 			return False
 
 	def get_parameters(self):
-		return [self.hat_index, self.button_flag]
+		return (self.hat_index, self.button_flag)
 
 class JoystickAxisSensor(Sensor):
 	'''For detecting joystick movement.'''
@@ -592,7 +616,7 @@ class JoystickAxisSensor(Sensor):
 			return False
 
 	def get_parameters(self):
-		return [self.axis_index]
+		return (self.axis_index,)
 
 
 class MouseAdapter(metaclass=bat.bats.Singleton):
@@ -667,7 +691,7 @@ class MouseLookSensor(Sensor):
 			return offset
 
 	def get_parameters(self):
-		return [self.axis_index]
+		return (self.axis_index,)
 
 class MouseButtonSensor(Sensor):
 	'''For detecting mouse button presses.'''
@@ -681,7 +705,7 @@ class MouseButtonSensor(Sensor):
 		return self.key in bge.logic.mouse.active_events
 
 	def get_parameters(self):
-		return [bge.events.EventToString(self.key)]
+		return (self.from_keycode(self.key),)
 
 sensor_types = {
 	KeyboardSensor.s_type: KeyboardSensor,
