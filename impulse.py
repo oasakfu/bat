@@ -42,10 +42,9 @@ class Input(metaclass=bat.bats.Singleton):
 
 	def __init__(self):
 		self.handlers = bat.containers.SafePriorityStack()
-		self.buttons = []
+		self.clear_buttons()
 
-		self.sequence_map = {}
-		self.max_seq_len = 0
+		self.clear_sequences()
 		self.sequence = ""
 		self.capturing = None
 
@@ -145,10 +144,18 @@ class Input(metaclass=bat.bats.Singleton):
 		for controller in self.buttons:
 			controller.unbind(sensor_type, *sensor_opts)
 
+	def unbind_all(self):
+		for controller in self.buttons:
+			controller.unbind_all()
+
+	def sensor_def_to_human_string(self, sensor_type, *sensor_opts):
+		cls = get_sensor_class(sensor_type)
+		return cls.parms_to_human_string(*sensor_opts)
+
 	def _capture(self):
 		def _input_captured(params):
-			bat.event.Event('InputCaptured', params).send(1)
 			self.capturing = None
+			bat.event.Event('InputCaptured', params).send(1)
 
 		keyboard = bge.logic.keyboard
 		if 'BUTTON' in self.capturing:
@@ -237,6 +244,10 @@ class Input(metaclass=bat.bats.Singleton):
 		if self.max_seq_len < len(sequence):
 			self.max_seq_len = len(sequence)
 
+	def clear_sequences(self):
+		self.sequence_map = {}
+		self.max_seq_len = 0
+
 # Source constants can be used to determine which devices caused a button to
 # become active.
 SRC_NONE = 0
@@ -248,7 +259,7 @@ SRC_MOUSE_AXIS = 1<<4
 
 class Controller(metaclass=abc.ABCMeta):
 	def create_sensor(self, sensor_type, *sensor_opts):
-		return sensor_types[sensor_type](*sensor_opts)
+		return get_sensor_class(sensor_type)(*sensor_opts)
 
 	@abc.abstractclassmethod
 	def update(self, js):
@@ -266,6 +277,9 @@ class Controller(metaclass=abc.ABCMeta):
 	@abc.abstractclassmethod
 	def unbind_all(self):
 		pass
+	@abc.abstractclassmethod
+	def get_bindings(self, path):
+		return []
 	@abc.abstractclassmethod
 	def get_sensor_categories(self, path):
 		return set()
@@ -299,6 +313,9 @@ class Button(Controller):
 
 	def unbind_all(self):
 		self.sensors = []
+
+	def get_bindings(self, path):
+		return self.sensors
 
 	def get_sensor_categories(self, path):
 		if path != '':
@@ -391,6 +408,16 @@ class DPad1D(Controller):
 		self.next.unbind_all()
 		self.prev.unbind_all()
 		self.axes = []
+
+	def get_bindings(self, path):
+		if path == 'next':
+			self.next.get_bindings('')
+		elif path == 'prev':
+			self.prev.get_bindings('')
+		elif path == 'axis':
+			return self.axes
+		else:
+			raise KeyError('No controller called "%s"' % path)
 
 	def get_sensor_categories(self, path):
 		if path in {'next', 'prev'}:
@@ -532,6 +559,22 @@ class DPad2D(Controller):
 		self.xaxes = []
 		self.yaxes = []
 
+	def get_bindings(self, path):
+		if path == 'up':
+			return self.up.get_bindings('')
+		elif path == 'down':
+			return self.down.get_bindings('')
+		elif path == 'left':
+			return self.left.get_bindings('')
+		elif path == 'right':
+			return self.right.get_bindings('')
+		elif path == 'xaxis':
+			return self.xaxes
+		elif path == 'yaxis':
+			return self.yaxes
+		else:
+			raise KeyError('No controller called "%s"' % path)
+
 	def get_sensor_categories(self, path):
 		if path in {'up', 'down', 'left', 'right'}:
 			return {'BUTTON'}
@@ -670,25 +713,35 @@ class Sensor(metaclass=abc.ABCMeta):
 	def get_parameters(self):
 		return ()
 
+	@classmethod
+	@abc.abstractmethod
+	def parms_to_human_string(cls, *parameters):
+		return ''
+
+	def __str__(self):
+		return self.__class__.parms_to_human_string(*self.get_parameters())
+
 class KeyboardSensor(Sensor):
 	'''For keyboard keys.'''
 	source = SRC_KEYBOARD
 	s_type = "keyboard"
 
-	def __init__(self, key):
-		self.key = to_keycode(key)
+	def __init__(self, k):
+		self.k = to_keycode(k)
 
 	def evaluate(self, active_keys, js):
-		return self.key in active_keys
+		return self.k in active_keys
 
 	def get_parameters(self):
-		return (from_keycode(self.key),)
+		return (from_keycode(self.k),)
 
-	def __str__(self):
-		name = from_keycode(self.key)
-		if name.endswith('key'):
-			name = name[:-3]
-		return name
+	@classmethod
+	def parms_to_human_string(cls, key_name):
+		if key_name.endswith('key'):
+			key_name = key_name[:-3]
+		if key_name.endswith('arrow'):
+			key_name = key_name[:-5]
+		return key_name
 
 class JoystickButtonSensor(Sensor):
 	'''For regular joystick buttons.'''
@@ -704,8 +757,9 @@ class JoystickButtonSensor(Sensor):
 	def get_parameters(self):
 		return (self.button,)
 
-	def __str__(self):
-		return "js-btn-%d" % self.button
+	@classmethod
+	def parms_to_human_string(cls, button):
+		return "jbtn.%d" % button
 
 class JoystickDpadSensor(Sensor):
 	'''For detecting DPad presses.'''
@@ -726,8 +780,9 @@ class JoystickDpadSensor(Sensor):
 	def get_parameters(self):
 		return (self.hat_index, self.button_flag)
 
-	def __str__(self):
-		return "js-pad-%d-%d" % (self.hat_index, self.button_flag)
+	@classmethod
+	def parms_to_human_string(cls, hat_index, button_flag):
+		return "jpad.%d.%d" % (hat_index, button_flag)
 
 class JoystickAxisSensor(Sensor):
 	'''For detecting joystick movement.'''
@@ -747,8 +802,9 @@ class JoystickAxisSensor(Sensor):
 	def get_parameters(self):
 		return (self.axis_index,)
 
-	def __str__(self):
-		return "js-axis-%d" % self.axis_index
+	@classmethod
+	def parms_to_human_string(cls, axis_index):
+		return "js.%d" % axis_index
 
 
 class MouseAdapter(metaclass=bat.bats.Singleton):
@@ -825,25 +881,29 @@ class MouseLookSensor(Sensor):
 	def get_parameters(self):
 		return (self.axis_index,)
 
-	def __str__(self):
-		return "mouse-axis-%d" % self.axis_index
+	@classmethod
+	def parms_to_human_string(cls, axis_index):
+		return "mouse.%d" % axis_index
 
 class MouseButtonSensor(Sensor):
 	'''For detecting mouse button presses.'''
 	source = SRC_MOUSE
 	s_type = "mousebutton"
 
-	def __init__(self, key):
-		self.key = to_keycode(key)
+	def __init__(self, k):
+		self.k = to_keycode(k)
 
 	def evaluate(self, active_keys, js):
-		return self.key in bge.logic.mouse.active_events
+		return self.k in bge.logic.mouse.active_events
 
 	def get_parameters(self):
-		return (from_keycode(self.key),)
+		return (from_keycode(self.k),)
 
-	def __str__(self):
-		return from_keycode(self.key)
+	@classmethod
+	def parms_to_human_string(cls, button_name):
+		if button_name.endswith('mouse'):
+			button_name = button_name[:-5]
+		return 'm.%s' %button_name
 
 sensor_types = {
 	KeyboardSensor.s_type: KeyboardSensor,
@@ -853,6 +913,9 @@ sensor_types = {
 	MouseLookSensor.s_type: MouseLookSensor,
 	MouseButtonSensor.s_type: MouseButtonSensor,
 	}
+
+def get_sensor_class(sensor_type):
+	return sensor_types[sensor_type]
 
 class Handler:
 	'''
