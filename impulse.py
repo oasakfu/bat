@@ -143,8 +143,12 @@ class Input(metaclass=bat.bats.Singleton):
 		for controller in self.buttons:
 			controller.unbind(sensor_type, *sensor_opts)
 
-	def unbind_all(self):
-		for controller in self.buttons:
+	def unbind_all(self, path=None):
+		if path is None:
+			for controller in self.buttons:
+				controller.unbind_all()
+		else:
+			controller = self.get_root_controller(path)
 			controller.unbind_all()
 
 	def sensor_def_to_human_string(self, sensor_type, *sensor_opts):
