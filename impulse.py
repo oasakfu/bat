@@ -57,7 +57,6 @@ class Input(metaclass=bat.bats.Singleton):
 
 		if self.capturing is not None:
 			self._capture()
-			return
 
 		for btn in self.buttons:
 			btn.update(js)
@@ -154,7 +153,6 @@ class Input(metaclass=bat.bats.Singleton):
 
 	def _capture(self):
 		def _input_captured(params):
-			self.capturing = None
 			bat.event.Event('InputCaptured', params).send(1)
 
 		keyboard = bge.logic.keyboard
@@ -215,6 +213,9 @@ class Input(metaclass=bat.bats.Singleton):
 		controller, remainder = self.get_root_controller(path)
 		sensor_cats = controller.get_sensor_categories(remainder)
 		self.start_capturing(sensor_cats)
+
+	def stop_capturing(self):
+		self.capturing = None
 
 	def add_handler(self, handler, priority='PLAYER'):
 		'''
@@ -918,13 +919,7 @@ def get_sensor_class(sensor_type):
 	return sensor_types[sensor_type]
 
 class Handler:
-	'''
-	Use as a mixin to handle input from the user. Any methods that are not
-	overridden will do nothing. By default, non-overridden functions will
-	capture the event (preventing further processing from lower-priority
-	handlers). To allow such events to pass through, set
-	self.default_handler_response = False.
-	'''
+	'''Use as a mixin to handle input from the user.'''
 
 	def can_handle_input(self, state):
 		'''
