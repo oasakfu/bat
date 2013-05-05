@@ -706,7 +706,6 @@ class Sensor(metaclass=abc.ABCMeta):
 		if sensor_type != self.s_type:
 			return False
 		if parameters != self.get_parameters():
-			print(self.get_parameters(), parameters)
 			return False
 		return True
 
