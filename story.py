@@ -1003,7 +1003,7 @@ class State:
 				break
 
 		# Print debugging information.
-		if blocked_transitions != self.blocked_transitions:
+		if blocked_transitions is not None and blocked_transitions != self.blocked_transitions:
 			if len(blocked_transitions) > 0:
 				State.log.debug('Blocked transitions: %s', blocked_transitions)
 			self.blocked_transitions = blocked_transitions
