@@ -156,7 +156,9 @@ class Input(metaclass=bat.bats.Singleton):
 		return cls.parms_to_human_string(*sensor_opts)
 
 	def _capture(self):
+		Input.log.debug('Capturing...')
 		def _input_captured(params):
+			Input.log.info('Captured %s', params)
 			bat.event.Event('InputCaptured', params).send(1)
 
 		keyboard = bge.logic.keyboard
@@ -210,6 +212,7 @@ class Input(metaclass=bat.bats.Singleton):
 					return
 
 	def start_capturing(self, sensor_categories):
+		Input.log.info('Starting capture for %s', sensor_categories)
 		self.capture_mouse_pos = bge.logic.mouse.position
 		self.capturing = sensor_categories
 
@@ -219,6 +222,7 @@ class Input(metaclass=bat.bats.Singleton):
 		self.start_capturing(sensor_cats)
 
 	def stop_capturing(self):
+		Input.log.info('Stopping capture')
 		self.capturing = None
 
 	def add_handler(self, handler, priority='PLAYER'):
