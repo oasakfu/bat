@@ -146,7 +146,7 @@ class Singleton(type):
 		@profile('%s.%s%s' % (module.__name__, prefix, methodName))
 		def method_wrapper():
 			try:
-				return getattr(self(), methodName)()
+				return method.__call__(self())
 			except:
 				Singleton.log.error('Uncaught exception. Pausing scene.', exc_info=1)
 				bge.logic.getCurrentScene().suspend()
@@ -222,10 +222,10 @@ class GameOb(type):
 		be done in a separate function so that it may act as a closure.'''
 
 		@profile('%s.%s%s' % (module.__name__, prefix, methodName))
-		def method_wrapper():
+		def method_wrapper(controller):
 			try:
-				o = bge.logic.getCurrentController().owner
-				return getattr(o, methodName)()
+				o = controller.owner
+				return method.__call__(o)
 			except:
 				GameOb.log.error('Uncaught exception. Pausing scene.', exc_info=1)
 				bge.logic.getCurrentScene().suspend()
@@ -413,34 +413,31 @@ class Timekeeper(metaclass=Singleton):
 			self.current_tick += 1
 		self.callers.add(c.owner)
 
-	@staticmethod
-	def frame_count_pre():
+	def frame_count_pre(self):
 		'''
 		Unlock. It doesn't matter which scene this gets called from, because all
 		scenes will render before frame_count_post is called.
 		'''
-		tk = Timekeeper()
-		tk.locked = False
+		self.locked = False
 
-	@staticmethod
-	def frame_count_post():
+	def frame_count_post(self):
 		'''
 		Lock, to prevent two scene callbacks from updating the counter.
 		'''
-		tk = Timekeeper()
-		if tk.locked:
+		if self.locked:
 			return
-		tk.locked = True
-		tk._current_frame += 1
+		self.locked = True
+		self._current_frame += 1
 
 	def ensure_installed(self):
 		sce = bge.logic.getCurrentScene()
-		if Timekeeper.frame_count_pre in sce.pre_draw:
+		if self.frame_count_pre in sce.pre_draw:
 			return
 
 		#print("Installing timekeeper")
-		sce.pre_draw.append(Timekeeper.frame_count_pre)
-		sce.post_draw.append(Timekeeper.frame_count_post)
+		sce.pre_draw.append(self.frame_count_pre)
+		sce.post_draw.append(self.frame_count_post)
+tk = Timekeeper()
 
 def once_per_frame(f):
 	'''
@@ -450,7 +447,7 @@ def once_per_frame(f):
 	f._last_frame_num = -1
 	@wraps(f)
 	def f_once_per_frame(*args, **kwargs):
-		frame_num = Timekeeper().current_frame
+		frame_num = tk.current_frame
 		if frame_num == f._last_frame_num:
 			return
 		f._last_frame_num = frame_num
@@ -465,7 +462,7 @@ def once_per_tick(f):
 	f._last_tick_num = -1
 	@wraps(f)
 	def f_once_per_tick(*args, **kwargs):
-		frame_num = Timekeeper().current_tick
+		frame_num = tk.current_tick
 		if frame_num == f._last_tick_num:
 			return
 		f._last_tick_num = frame_num
