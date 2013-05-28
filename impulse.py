@@ -955,12 +955,18 @@ class DirectionMapperLocal:
 
 	def __init__(self):
 		self.direction = None
+		self.car_mode = False
 
 	def update(self, target, impulse_vec):
+		if self.car_mode and impulse_vec.y < 0:
+			iv = impulse_vec.copy()
+			iv.x = -iv.x
+		else:
+			iv = impulse_vec
 		fwd_impulse = target.getAxisVect(bat.bmath.YAXIS)
 		right_impulse = target.getAxisVect(bat.bmath.XAXIS)
-		direction = right_impulse * impulse_vec.x
-		direction += fwd_impulse * impulse_vec.y
+		direction = right_impulse * iv.x
+		direction += fwd_impulse * iv.y
 		direction.normalize()
 		self.direction = direction
 
