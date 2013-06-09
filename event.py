@@ -166,17 +166,22 @@ class WeakEvent(Event):
 def send(c):
 	'''Send an event from an object. Bind this to a Python logic brick.'''
 	o = c.owner
-	if bat.utils.allSensorsPositive(c):
+	if 'trigger_some' in o and o['trigger_some']:
+		on = bat.utils.someSensorPositive(c)
+	else:
+		on = bat.utils.allSensorsPositive(c)
+
+	if on:
 		try:
 			msg = o['message']
 		except KeyError:
-			log.info('%s triggered positive, but has no "message" property', o)
+			log.debug('%s triggered positive, but has no "message" property', o)
 			return
 	else:
 		try:
 			msg = o['message_off']
 		except KeyError:
-			log.info('%s triggered negative, but has no "message_off" property', o)
+			log.debug('%s triggered negative, but has no "message_off" property', o)
 			return
 
 	if 'delay' in o:
