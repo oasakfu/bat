@@ -888,28 +888,42 @@ class State:
 		self.blocked_transitions = set()
 
 	def add_condition(self, condition):
-		'''Conditions control transition to this state.'''
+		'''
+		Conditions control transition to this state.
+		@return: self, for chaining.
+		'''
 		self.conditions.append(condition)
+		return self
 
 	def add_action(self, action):
-		'''Actions will run when this state becomes active.'''
+		'''
+		Actions will run when this state becomes active.
+		@return: self, for chaining.
+		'''
 		self.actions.append(action)
+		return self
 
 	def add_event(self, message, body=None):
-		'''Convenience method to add an ActEvent action.'''
+		'''
+		Convenience method to add an ActEvent action.
+		@return: self, for chaining.
+		'''
 		if hasattr(body, 'invalid'):
 			evt = bat.event.WeakEvent(message, body)
 		else:
 			evt = bat.event.Event(message, body)
 		self.actions.append(ActEvent(evt))
+		return self
 
 	def add_predecessor(self, preceding_state):
 		'''
 		Make this state run after another state.
 		@see: add_successor
 		@see: create_successor
+		@return: self, for chaining.
 		'''
 		preceding_state.add_successor(self)
+		return self
 
 	def add_successor(self, following_state):
 		'''
@@ -923,8 +937,10 @@ class State:
 		@see: add_predecessor
 		@see: create_successor
 		@see: add_sub_step
+		@return: self, for chaining.
 		'''
 		self.transitions.append(following_state)
+		return self
 
 	def create_successor(self, stateName=None):
 		'''Create a new State and add it as a transition of this one.
@@ -942,8 +958,41 @@ class State:
 		that the parent is active.
 		@see: create_sub_step
 		@see: add_successor
+		@return: self, for chaining.
 		'''
 		self.subSteps.append(state)
+		return self
+
+	def __call__(self, thing, body=None):
+		'''
+		Add a condition, action, event or sub-state to this state.
+		This is called as though the state is a function, and reduces verbosity
+		when chaining. For example, the following code would create a state that
+		sends the message "foo" after a half-second delay:
+
+			state = (bat.story.State()
+				(bat.story.CondWait(0.5))
+				(bar.story.ActDestroy())
+				("foo", "bar")
+			)
+
+		@see: add_sub_step
+		@see: add_condition
+		@see: add_action
+		@see: add_event
+		@return: self, for chaining.
+		'''
+		if hasattr(thing, 'progress'):
+			self.add_sub_step(thing)
+		elif hasattr(thing, 'evaluate'):
+			self.add_condition(thing)
+		elif hasattr(thing, 'execute'):
+			self.add_action(thing)
+		elif isinstance(thing, str):
+			self.add_event(thing, body)
+		else:
+			raise TypeError("Can't add unrecognised argument %s" % thing.__class__)
+		return self
 
 	def create_sub_step(self, stateName=""):
 		'''
@@ -978,8 +1027,9 @@ class State:
 			try:
 				State.log.info('%s', act)
 				act.execute(c)
-			except Exception:
-				State.log.warn('Action %s failed', act, exc_info=1)
+			except Exception as e:
+				State.log.warn('Action %s failed: %s', act, e)
+				State.log.debug('Details:', exc_info=1)
 
 	def progress(self, c):
 		'''Find the next state that has all conditions met, or None if no such
