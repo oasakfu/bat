@@ -53,14 +53,22 @@ class Input(metaclass=bat.bats.Singleton):
 	@bat.bats.once_per_tick
 	def process(self, c):
 		'''Distribute all events to the listeners.'''
-		js = c.sensors['Joystick']
 
 		if self.capturing is not None:
 			self._capture()
 
+		self.update_buttons(c)
+		self.distribute_events()
+		self.check_sequences()
+
+	@bat.bats.profile()
+	def update_buttons(self, c):
+		js = c.sensors['Joystick']
 		for btn in self.buttons:
 			btn.update(js)
 
+	@bat.bats.profile()
+	def distribute_events(self):
 		# Run through the handlers separately for each event type, because a
 		# handler may accept some events and not others.
 
@@ -75,8 +83,7 @@ class Input(metaclass=bat.bats.Singleton):
 						h.handle_input(btn)
 					break
 
-		self.check_sequences()
-
+	@bat.bats.profile()
 	def check_sequences(self):
 		'''
 		Build up strings of button presses, looking for known combinations.
@@ -155,6 +162,7 @@ class Input(metaclass=bat.bats.Singleton):
 		cls = get_sensor_class(sensor_type)
 		return cls.parms_to_human_string(*sensor_opts)
 
+	@bat.bats.profile()
 	def _capture(self):
 		Input.log.debug('Capturing...')
 		def _input_captured(params):

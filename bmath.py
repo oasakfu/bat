@@ -439,6 +439,7 @@ class ArcRay(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 		if DEBUG:
 			self.marker = bat.utils.add_object('PointMarker', 0)
 
+	@bat.bats.profile()
 	def _createPoints(self):
 		'''Generate an arc of line segments to cast rays along.'''
 		self.path = []
@@ -462,6 +463,7 @@ class ArcRay(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 		except IndexError:
 			self.raylen = 0.0
 
+	@bat.bats.profile()
 	def getHitPosition(self):
 		"""Return the hit point of the first child ray that hits.
 		If none hit, the default value of the first ray is returned."""
@@ -475,11 +477,13 @@ class ArcRay(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 		refMatInv = refMat.inverted()
 		refOrnInv = refMatInv.to_quaternion()
 
-		worldPath = []
-		for point in self.path:
-			worldPath.append(refMat * point)
-
-		for A, B in zip(worldPath, worldPath[1:]):
+		iterator = iter(self.path)
+		A = refMat * next(iterator)
+		while True:
+			try:
+				B = refMat * next(iterator)
+			except StopIteration:
+				break
 			ob, p, norm = self.rayCast(B, A, self.raylen, self.prop, True, True,
 					False)
 			if ob:
@@ -487,10 +491,12 @@ class ArcRay(bat.bats.BX_GameObject, bge.types.KX_GameObject):
 				self.lastHitNorm = refOrnInv * norm
 				if DEBUG:
 					bge.render.drawLine(A, p, bat.render.ORANGE.xyz)
-				break
+				return ob, p, norm
 			else:
 				if DEBUG:
 					bge.render.drawLine(A, B, bat.render.YELLOW.xyz)
+
+			A = B
 
 		wp = refMat * self.lastHitPoint
 		wn = refOrn * self.lastHitNorm

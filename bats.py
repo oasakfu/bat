@@ -36,7 +36,7 @@ def _print_stats(c):
 		return
 
 	def timekey(stat):
-		return stat[1] / float(stat[2])
+		return stat[1]
 	stats = sorted(prof.values(), key=timekey, reverse=True)
 
 	print('=== Execution Statistics ===')
@@ -61,13 +61,17 @@ elif PROFILE_STOCHASTIC:
 	bat.statprof.start()
 	print_stats = _print_stats2
 class profile:
-	def __init__(self, name):
+	def __init__(self, name=None):
 		self.name = name
 
 	def __call__(self, fun):
 		if not PROFILE_BASIC:
 			return fun
 		else:
+			if self.name is None:
+				name = "{}.~{}".format(fun.__module__, fun.__name__)
+			else:
+				name = self.name
 			def profile_fun(*args, **kwargs):
 				start = time.clock()
 				try:
@@ -75,7 +79,7 @@ class profile:
 				finally:
 					duration = time.clock() - start
 					if not fun in prof:
-						prof[fun] = [self.name, duration, 1]
+						prof[fun] = [name, duration, 1]
 					else:
 						prof[fun][1] += duration
 						prof[fun][2] += 1
@@ -222,9 +226,9 @@ class GameOb(type):
 		be done in a separate function so that it may act as a closure.'''
 
 		@profile('%s.%s%s' % (module.__name__, prefix, methodName))
-		def method_wrapper(controller):
+		def method_wrapper():
 			try:
-				o = controller.owner
+				o = bge.logic.getCurrentController().owner
 				return method.__call__(o)
 			except:
 				GameOb.log.error('Uncaught exception. Pausing scene.', exc_info=1)
