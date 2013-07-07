@@ -177,6 +177,17 @@ def billboard(o):
 	_, vec, _ = o.getVectTo(bge.logic.getCurrentScene().active_camera)
 	o.alignAxisToVect(vec, 2)
 
+@bat.utils.owner
+def billboard_yneg_zup(o):
+	'''Track the camera - the Y-axis of the current object will be point towards
+	the camera.'''
+
+	other = bge.logic.getCurrentScene().active_camera
+	_, vec, _ = o.getVectTo(other)
+	vec.negate()
+	o.alignAxisToVect(vec, 1)
+	o.alignAxisToVect(bat.bmath.ZAXIS, 2)
+
 @bat.utils.all_sensors_positive
 def makeScreenshot():
 	bge.render.makeScreenshot('//Screenshot#.jpg')
