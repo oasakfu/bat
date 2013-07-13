@@ -289,7 +289,6 @@ class CondWait(Condition):
 	def __init__(self, duration):
 		self.duration = duration
 		self.start = None
-		self.triggered = False
 
 	def enable(self, enabled):
 		if enabled:
@@ -302,6 +301,23 @@ class CondWait(Condition):
 
 	def get_short_name(self):
 		return "Wait(%s)" % self.duration
+
+class CondNextFrame(Condition):
+	'''A condition that waits until the next frame has been *rendered*.'''
+	def __init__(self):
+		self.start = None
+
+	def enable(self, enabled):
+		if enabled:
+			self.start = bat.bats.Timekeeper().current_frame
+		else:
+			self.start = None
+
+	def evaluate(self, c):
+		return bat.bats.Timekeeper().current_frame != self.start
+
+	def get_short_name(self):
+		return "NextFrame()"
 
 #
 # Actions. These belong to and are executed by steps.
