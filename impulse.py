@@ -830,7 +830,7 @@ class MouseAdapter(metaclass=bat.bats.Singleton):
 	'''
 	def __init__(self):
 		self._read_pos()
-		#bge.logic.mouse.visible = True
+		bge.logic.mouse.visible = False
 
 	@bat.bats.once_per_tick
 	def _read_pos(self):
