@@ -291,4 +291,3 @@ def display():
     print('---')
     print('Sample count: %d' % state.sample_count)
     print('Total time: %f seconds' % state.accumulated_time)
-

@@ -34,105 +34,105 @@ __dirty = False
 log = logging.getLogger(__name__)
 
 def get_session_id():
-	'''Get the ID of the current session.'''
-	try:
-		return bge.logic.globalDict['/_sessionId']
-	except KeyError:
-		return 0
+    '''Get the ID of the current session.'''
+    try:
+        return bge.logic.globalDict['/_sessionId']
+    except KeyError:
+        return 0
 
 def set_session_id(identifier):
-	'''Set the ID of the current session.'''
-	global __dirty
-	bge.logic.globalDict['/_sessionId'] = identifier
-	__dirty = True
+    '''Set the ID of the current session.'''
+    global __dirty
+    bge.logic.globalDict['/_sessionId'] = identifier
+    __dirty = True
 
 def resolve(path, session=None, level=None):
-	if session is None:
-		session = str(get_session_id())
-	rp = str(path).replace('/game/', '/savedGames/%s/' % str(session), 1)
-	if '/level/' in rp:
-		if level is None:
-			level = get('/game/levelFile', session=session)
-		rp = str(rp).replace('/level/', '/_levels/%s/' % str(level), 1)
-	return rp
+    if session is None:
+        session = str(get_session_id())
+    rp = str(path).replace('/game/', '/savedGames/%s/' % str(session), 1)
+    if '/level/' in rp:
+        if level is None:
+            level = get('/game/levelFile', session=session)
+        rp = str(rp).replace('/level/', '/_levels/%s/' % str(level), 1)
+    return rp
 
 def get(path, defaultValue=None, session=None, level=None):
-	'''
-	Get a value from persistent storage. By convention, there are three well-
-	known base paths:
-	 - /opt/: Global options.
-	 - /_savedGames/N/: Data specific to saved game 'N'.
-	 - /game/: Data specific to the current game, as determined by get_session_id.
-			  E.g. if the current session is game 0, /game/ == /_savedGames/0/.
-			  NOTE: The path must start with '/game/', not '/game'.
-	 - /level/: Data specific to the current level in the current game.
-	 		  E.g. /game/level/ == /_savedGames/0/_levels/Dungeon.blend/
-	These conventions will not change, so you can use them in scripts or bind
-	them to Blender objects.
+    '''
+    Get a value from persistent storage. By convention, there are three well-
+    known base paths:
+     - /opt/: Global options.
+     - /_savedGames/N/: Data specific to saved game 'N'.
+     - /game/: Data specific to the current game, as determined by get_session_id.
+              E.g. if the current session is game 0, /game/ == /_savedGames/0/.
+              NOTE: The path must start with '/game/', not '/game'.
+     - /level/: Data specific to the current level in the current game.
+               E.g. /game/level/ == /_savedGames/0/_levels/Dungeon.blend/
+    These conventions will not change, so you can use them in scripts or bind
+    them to Blender objects.
 
-	Parameters:
-	defaultValue: The value to return if 'path' can't be found. Remember that
-		None, zero, empty strings and empty lists all evaluate as False. Most
-		other things evaluate as True.
-	'''
+    Parameters:
+    defaultValue: The value to return if 'path' can't be found. Remember that
+        None, zero, empty strings and empty lists all evaluate as False. Most
+        other things evaluate as True.
+    '''
 
-	p = resolve(path, session=session, level=level)
-	try:
-		res = bge.logic.globalDict[p]
-	except KeyError:
-		put(p, defaultValue)
-		return defaultValue
-	log.debug("store.get(%s) -> %s", p, res)
-	return res
+    p = resolve(path, session=session, level=level)
+    try:
+        res = bge.logic.globalDict[p]
+    except KeyError:
+        put(p, defaultValue)
+        return defaultValue
+    log.debug("store.get(%s) -> %s", p, res)
+    return res
 
 def put(path, value, session=None, level=None):
-	'''Set a value in persistent storage. The data will be saved to file the
-	next time save() is called.'''
-	global __dirty
+    '''Set a value in persistent storage. The data will be saved to file the
+    next time save() is called.'''
+    global __dirty
 
-	p = resolve(path, session=session, level=level)
-	log.debug("store.put(%s) <- %s", p, value)
-	bge.logic.globalDict[p] = value
-	__dirty = True
+    p = resolve(path, session=session, level=level)
+    log.debug("store.put(%s) <- %s", p, value)
+    bge.logic.globalDict[p] = value
+    __dirty = True
 
 def unset(path, session=None, level=None):
-	'''Delete a value from persistent storage.'''
-	global __dirty
+    '''Delete a value from persistent storage.'''
+    global __dirty
 
-	p = resolve(path, session=session, level=level)
-	if p in bge.logic.globalDict:
-		log.debug("store.unset(%s)", p)
-		del(bge.logic.globalDict[p])
-		__dirty = True
+    p = resolve(path, session=session, level=level)
+    if p in bge.logic.globalDict:
+        log.debug("store.unset(%s)", p)
+        del(bge.logic.globalDict[p])
+        __dirty = True
 
 def search(path='/', session=None, level=None):
-	'''Returns a copy of the store keys for iteration.'''
-	p = resolve(path, session=session, level=level)
-	keys = []
-	for k in bge.logic.globalDict.keys():
-		if k.startswith(p):
-			keys.append(k)
-	return keys
+    '''Returns a copy of the store keys for iteration.'''
+    p = resolve(path, session=session, level=level)
+    keys = []
+    for k in bge.logic.globalDict.keys():
+        if k.startswith(p):
+            keys.append(k)
+    return keys
 
 def _save():
-	global __dirty
+    global __dirty
 
-	log.info('Saving game.')
-	bge.logic.saveGlobalDict()
-	__dirty = False
+    log.info('Saving game.')
+    bge.logic.saveGlobalDict()
+    __dirty = False
 
 def _load():
-	global __dirty
+    global __dirty
 
-	bge.logic.loadGlobalDict()
-	__dirty = False
+    bge.logic.loadGlobalDict()
+    __dirty = False
 
 # Load once on initialisation.
 _load()
 
 @bat.utils.all_sensors_positive
 def save():
-	'''Save the data to a file. This should be called periodically - it will
-	only actually write the file if the settings have changed.'''
-	if __dirty:
-		_save()
+    '''Save the data to a file. This should be called periodically - it will
+    only actually write the file if the settings have changed.'''
+    if __dirty:
+        _save()

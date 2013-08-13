@@ -18,20 +18,20 @@
 import bge
 
 def print_tree(ob):
-	'''Prints object hierarchy to the console.'''
-	stack = [("", ob)]
-	while len(stack) > 0:
-		indent, ob = stack.pop()
-		for child in ob.children:
-			stack.append((indent + "  ", child))
-		print("%s%s: vis=%s" % (indent, ob.name, ob.visible))
+    '''Prints object hierarchy to the console.'''
+    stack = [("", ob)]
+    while len(stack) > 0:
+        indent, ob = stack.pop()
+        for child in ob.children:
+            stack.append((indent + "  ", child))
+        print("%s%s: vis=%s" % (indent, ob.name, ob.visible))
 
 def print_all_trees(c):
-	'''Prints object hierarchy to the console.'''
-	if not c.sensors[0].positive:
-		return
+    '''Prints object hierarchy to the console.'''
+    if not c.sensors[0].positive:
+        return
 
-	sce = bge.logic.getCurrentScene()
-	roots = [ob for ob in sce.objects if ob.parent is None]
-	for ob in roots:
-		print_tree(ob)
+    sce = bge.logic.getCurrentScene()
+    roots = [ob for ob in sce.objects if ob.parent is None]
+    for ob in roots:
+        print_tree(ob)
