@@ -136,6 +136,10 @@ class SafeList:
         for item in iterable:
             self.append(item)
 
+    def clear(self):
+        for item in list(self):
+            self.discard(item)
+
     def count(self, item):
         if hasattr(item, 'invalid') and item.invalid:
             return 0

@@ -204,6 +204,12 @@ class Jukebox(metaclass=bat.bats.Singleton):
         self.stack.discard(track)
         self.update()
 
+    def stop_all(self, fade_rate=None):
+        if self.current_track is not None:
+            self.current_track.special_fade_out_rate = fade_rate
+        self.stack.clear()
+        self.update()
+
 class Track:
 
     def __init__(self, sample, ob, fade_in_rate=FADE_RATE, fade_out_rate=FADE_RATE):
