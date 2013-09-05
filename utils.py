@@ -25,6 +25,7 @@ def replaceObject(name, original, time = 0):
      - Deletes the original after the new one is created.'''
     scene = bge.logic.getCurrentScene()
     newObj = scene.addObject(name, original, time)
+    newObj.localScale = original.localScale
     for prop in original.getPropertyNames():
         newObj[prop] = original[prop]
     if original.parent != None:
