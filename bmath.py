@@ -418,6 +418,8 @@ class ArcRay(bat.bats.BX_GameObject, bge.types.KX_GameObject):
     RADIUS = 2.0
     ANGLE = 180.0
     RESOLUTION = 6
+    # Shoot past the next point by this amount to avoid precision errors.
+    RAY_MARGIN = 0.01
 
     def __init__(self, old_owner):
         self.set_default_prop('angle', ArcRay.ANGLE)
@@ -456,7 +458,7 @@ class ArcRay(bat.bats.BX_GameObject, bge.types.KX_GameObject):
             point.z = math.cos(angle) * self['radius']
             self.path.append(point)
         try:
-            self.raylen = (self.path[1] - self.path[0]).magnitude
+            self.raylen = (self.path[1] - self.path[0]).magnitude * (1 + ArcRay.RAY_MARGIN)
         except IndexError:
             self.raylen = 0.0
 
