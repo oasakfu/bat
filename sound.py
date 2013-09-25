@@ -134,10 +134,43 @@ class Jukebox(metaclass=bat.bats.Singleton):
         self.stack = bat.containers.SafePriorityStack()
         self.current_track = None
         self.track_cache = {}
+        # The amplifier adjusts the volume of all playing tracks. Tracks may
+        # also have their own volume set, and may fade in and out individually,
+        # in which case their volumes will be multiplied by the amplifier
+        # volume.
+        self.amplifier = Amplifier(1)
+        self.amp_interpolator = bat.bmath.LinearInterpolatorAbsolute(
+            1.0, 0.05)
+        self.amplifier_tweakers = bat.containers.SafePriorityStack()
+
+    def add_volume_tweak(self, volume, ob):
+        '''
+        A volume tweak adjusts the master volume of the jukebox, affecting all
+        music tracks. Using tweaks allows multiple tweaks to be added, with the
+        most recently-added one taking precedence.
+        '''
+        for tweak in self.amplifier_tweakers:
+            if tweak.ob == ob:
+                tweak.volume = volume
+                self.amplifier_tweakers.push(tweak, 0)
+                return
+        tweak = VolumeTweak(volume, ob)
+        self.amplifier_tweakers.push(tweak, 0)
+
+    def remove_volume_tweak(self, ob):
+        '''
+        Remove a volume tweak. The next most recent tweak will then become
+        active - or the volume with return to 1 if there are no more tweaks.
+        '''
+        for tweak in self.amplifier_tweakers:
+            if tweak.ob == ob:
+                self.amplifier_tweakers.discard(tweak)
+                break
 
     def play_track(self, name, track, priority):
         self.stack.push(track, priority)
         self.track_cache[name] = track
+        track.sample.add_effect(self.amplifier)
         self.update()
 
     def play_files(self, name, ob, priority, *files, introfile=None, volume=1.0,
@@ -170,6 +203,14 @@ class Jukebox(metaclass=bat.bats.Singleton):
         self.play_track(name, track, priority)
 
     def update(self):
+        if len(self.amplifier_tweakers) == 0:
+            self.amp_interpolator.target = 1
+        else:
+            tweaker = self.amplifier_tweakers.top()
+            self.amp_interpolator.target = tweaker.volume
+        self.amplifier.multiplier = self.amp_interpolator.interpolate(
+            self.amplifier.multiplier)
+
         # Purge dead tracks
         for name, track in list(self.track_cache.items()):
             if track.invalid and not track.playing:
@@ -248,6 +289,16 @@ class Track:
 
     def __repr__(self):
         return "Track({})".format(repr(self.sample))
+
+class VolumeTweak:
+    def __init__(self, volume, ob):
+        self.volume = volume
+        self.ob = ob
+
+    @property
+    def invalid(self):
+        # Used by SafePriorityStack
+        return self.ob.invalid
 
 class Source(metaclass=abc.ABCMeta):
     '''A factory for sound factories.'''
@@ -414,6 +465,22 @@ class Localise(Effect):
 
     def __repr__(self):
         return "Localise(%s, %g)" % (self.ob, self.distmax)
+
+class Amplifier(Effect):
+    def __init__(self, multiplier=1):
+        self.multiplier = multiplier
+
+    def prepare(self, sample):
+        pass
+
+    @aud_lock
+    def apply(self, sample, handle):
+        if not handle.status:
+            return
+        handle.volume *= self.multiplier
+
+    def __repr__(self):
+        return "Amplifier(%g)" % self.multiplier
 
 class Fader(Effect):
     '''
