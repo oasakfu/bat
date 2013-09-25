@@ -140,30 +140,30 @@ class Jukebox(metaclass=bat.bats.Singleton):
         # volume.
         self.amplifier = Amplifier(1)
         self.amp_interpolator = bat.bmath.LinearInterpolatorAbsolute(
-            1.0, 0.05)
+            1.0, FADE_RATE)
         self.amplifier_tweakers = bat.containers.SafePriorityStack()
 
-    def add_volume_tweak(self, volume, ob):
+    def add_volume_tweak(self, owner, volume):
         '''
         A volume tweak adjusts the master volume of the jukebox, affecting all
         music tracks. Using tweaks allows multiple tweaks to be added, with the
         most recently-added one taking precedence.
         '''
         for tweak in self.amplifier_tweakers:
-            if tweak.ob == ob:
+            if tweak.owner == owner:
                 tweak.volume = volume
                 self.amplifier_tweakers.push(tweak, 0)
                 return
-        tweak = VolumeTweak(volume, ob)
+        tweak = VolumeTweak(volume, owner)
         self.amplifier_tweakers.push(tweak, 0)
 
-    def remove_volume_tweak(self, ob):
+    def remove_volume_tweak(self, owner):
         '''
         Remove a volume tweak. The next most recent tweak will then become
         active - or the volume with return to 1 if there are no more tweaks.
         '''
         for tweak in self.amplifier_tweakers:
-            if tweak.ob == ob:
+            if tweak.owner == owner:
                 self.amplifier_tweakers.discard(tweak)
                 break
 
@@ -291,14 +291,14 @@ class Track:
         return "Track({})".format(repr(self.sample))
 
 class VolumeTweak:
-    def __init__(self, volume, ob):
+    def __init__(self, volume, owner):
         self.volume = volume
-        self.ob = ob
+        self.owner = owner
 
     @property
     def invalid(self):
         # Used by SafePriorityStack
-        return self.ob.invalid
+        return self.owner.invalid
 
 class Source(metaclass=abc.ABCMeta):
     '''A factory for sound factories.'''
