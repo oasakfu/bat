@@ -348,6 +348,14 @@ class Button(Controller):
         '''
         return self.positive and self.triggered
 
+    @property
+    def deactivated(self):
+        '''
+        True if the button is up on this frame, for the first time. On the
+        following frame, this will be false even if the button is still up
+        '''
+        return self.triggered and not self.positive
+
     def update(self, js):
         positive = False
         src = SRC_NONE
