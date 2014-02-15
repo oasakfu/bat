@@ -15,6 +15,11 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+'''
+This module handles user input - keyboards, mice, joysticks - and provides a
+unified interface for all of them. Key bindings can be customised.
+'''
+
 import logging
 import abc
 
@@ -871,6 +876,8 @@ class MouseLookSensor(Sensor):
 
     source = SRC_MOUSE | SRC_MOUSE_AXIS
     s_type = "mouselook"
+    # Standardise on 800-pixel window
+    STD_WINDOW_SIZE = 800
     multiplier = 1.0
 
     def __init__(self, axis_index):
@@ -892,7 +899,9 @@ class MouseLookSensor(Sensor):
 
         pos = MouseAdapter().position
         offset = bat.bmath.clamp(-1, 1, (pos[self.axis_index] - actual_centre) * 2.0)
-        offset *= self.multiplier
+        # Multiply by window dimensions: if the window is small, mouse movement
+        # should have less of an effect and vice-versa.
+        offset *= self.multiplier * (extent / MouseLookSensor.STD_WINDOW_SIZE)
         pos[self.axis_index] = 0.5
         MouseAdapter().position = pos
         if self.first:
