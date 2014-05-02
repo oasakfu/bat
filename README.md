@@ -2,8 +2,8 @@
 
 This is the Blender Adventure Toolkit (*bat*) - a Python library for use with
 the Blender Game Engine (BGE). *Bat* provides classes and functions that can
-help with the creation of games in BGE. You can use it for any kind of game,
-but it's especially useful for adventure games.
+help with the creation of games in BGE. It was designed with adventure games in
+mind (hence the `story` module), but it would be useful for any kind of game.
 
 To use this library, link to `bat_assets.blend` and add the `G_BXT` group to
 your scene. Then you can use the Python modules from your code, for example:
@@ -41,15 +41,14 @@ Modules are described in more detail below.
 - `store`: Adds path support to Blender's saved game files. Defines some
   special paths such as `/game/`, which allows easy IO of saved game data for
   the current game (in a game that supports multiple saved games).
-- `story`: State machine for describing multi-step story interactions. Allows
-  the creation of sequences like:
+- `story`: State machine for describing multi-step story interactions. The
+  important thing to note is that this does not happen in one function call;
+  the steps are evaluated over many frames so the game can continue while the
+  state machine runs. Allows the creation of sequences like:
     1. Play animation X.
     1. When animation X reaches frame 25, play a sound.
     1. When the animation finishes, show the user a message and wait for input.
     1. If the user presses button 1 then do Y, else do Z.
-  The important thing to note is that this does not happen in one function call;
-  the steps are evaluated over many frames so the game can continue while the
-  state machine runs.
 
 
 ## IO
@@ -79,7 +78,8 @@ Modules are described in more detail below.
 ## Meta
 
 - `debug`: Debugging utilities e.g. pretty printers for console.
-- `statprof`: Statistical profiler
+- `statprof`: Statistical profiler for finding hotspots (slow parts) of Python
+  code.
 
 
 
