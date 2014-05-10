@@ -41,23 +41,80 @@ Modules are described in more detail below.
 - `store`: Adds path support to Blender's saved game files. Defines some
   special paths such as `/game/`, which allows easy IO of saved game data for
   the current game (in a game that supports multiple saved games).
-- `story`: State machine for describing multi-step story interactions. The
+- `story`: State machine for describing multi-step story interactions, e.g. conversations. The
   important thing to note is that this does not happen in one function call;
   the steps are evaluated over many frames so the game can continue while the
   state machine runs. Allows the creation of sequences like:
     1. Play animation X.
     1. When animation X reaches frame 25, play a sound.
     1. When the animation finishes, show the user a message and wait for input.
-    1. If the user presses button 1 then do Y, else do Z.
+
+```python
+s = (self.rootState.create_successor('Init')
+    (bat.story.ActAction("B_Final", 1, 60))
+    (bat.story.State()
+        (bat.story.CondActionGE(0, 25, tap=True))
+        (bat.story.ActSound('//Sound/cc-by/BirdSquarkSmall.ogg', pitchmin=0.9, pitchmax=1.1))
+    )
+)
+
+s = (s.create_successor()
+    (bat.story.CondActionGE(0, 60))
+    ("ShowDialogue", "Hi there, little snail! It's nice of you to come to visit.")
+)
+```
+
+In the example above, there are three states:
+
+- The first state succeeds from the root state and has no conditions, so it
+  will become active at the start. There is one action that plays an
+  animation (`ActAction`). There is also a sub-state.
+- The sub-state is evaluated for every frame that its parent is active. In
+  this case it has a condition that says it will only run when the animation
+  frame is greater than or equal to `25` (`CondActionGE`). It will only run
+  once, because `tap=True`. It has one action that plays a sound (`ActSound`).
+- The third state succeeds from the first state. It will become active when
+  the animation reaches frame `25` (`CondActionGE`), and at that point the
+  first state will become inactive. It has one action, which is to send an
+  event. Events can be sent using the special syntax `subject, body` - this
+  is a shortcut for the `ActEvent` class.
+
+Note that only one state can be active at a time, and sub-states are never really active.
+
+The syntax above is made passible by the `State.__call__` method and [chaining][ch].
+If you don't like it, you can write more explicit code like this:
+
+```python
+ssquark = bat.story.State()
+ssquark.add_condition(bat.story.CondActionGE(0, 25, tap=True))
+ssquark.add_action(bat.story.ActSound('//Sound/cc-by/BirdSquarkSmall.ogg', pitchmin=0.9, pitchmax=1.1))
+
+s = self.rootState.create_successor('Init')
+s.add_action(bat.story.ActAction("B_Final", 1, 60))
+s.add_sub_step(ssquark)
+
+s = s.create_successor()
+s.add_condition(bat.story.CondActionGE(0, 60))
+s.add_event("ShowDialogue", "Hi there, little snail! It's nice of you to come to visit.")
+```
+
+[ch]: http://en.wikipedia.org/wiki/Method_chaining
 
 
 ## IO
 
 - `impulse`: User input abstraction, allowing run-time configuration of input
   devices such as keyboards and joysticks. All devices are presented using the
-  same interfaces, e.g. a mouse has two axes just like a joystick.
+  same interfaces, e.g. a mouse has two axes just like a joystick. Multiple
+  physical keys and buttons can be bound to the same logical button, e.g. "Up"
+  could have bindings `w`, `uparrow`, `joystick axis 1 (positive)` and
+  `joystick dpad 1` simultaneously.
 - `sound`: Enhanced API for playing sounds and layering effects. Includes
-  event-driven music track switching with support for cross-fading.
+  event-driven music track switching with support for cross-fading - allowing
+  the music to change as your character moves around the level, or when
+  something happens in the story. Music tracks can be given priorities, e.g.
+  music for a battle situation might have a high priority while background music
+  would have a low priority.
 
 
 ## Dynamics and Kinematics
